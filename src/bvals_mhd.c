@@ -130,6 +130,9 @@ static void periodic_ox2(GridS *pG);
 static void periodic_ix3(GridS *pG);
 static void periodic_ox3(GridS *pG);
 
+static void periodicoffset_ix1(GridS *pG);
+static void periodicoffset_ox1(GridS *pG);
+
 static void conduct_ix1(GridS *pG);
 static void conduct_ox1(GridS *pG);
 static void conduct_ix2(GridS *pG);
@@ -578,6 +581,10 @@ void bvals_mhd_init(MeshS *pM)
               pD->ix1_BCFun = conduct_ix1;
             break;
 
+            case 14: /* Periodic offset */
+              pD->ix1_BCFun = periodicoffset_ix1;
+              break;
+
             default:
               ath_perr(-1,"[bvals_init]:bc_ix1=%d unknown\n",pM->BCFlag_ix1);
               exit(EXIT_FAILURE);
@@ -624,6 +631,13 @@ void bvals_mhd_init(MeshS *pM)
             case 5: /* Reflecting, B_normal!=0 */
               pD->ox1_BCFun = conduct_ox1;
             break;
+
+            case 14: /* Periodic with offset. */
+              pD->ox1_BCFun = periodicoffset_ox1;
+              break;
+
+
+
 
             default:
               ath_perr(-1,"[bvals_init]:bc_ox1=%d unknown\n",pM->BCFlag_ox1);
@@ -821,6 +835,7 @@ void bvals_mhd_init(MeshS *pM)
             case 5: /* Reflecting, B_normal!=0 */
               pD->ox3_BCFun = conduct_ox3;
             break;
+
 
             default:
               ath_perr(-1,"[bvals_init]:bc_ox3=%d unknown\n",pM->BCFlag_ox3);
@@ -1945,6 +1960,117 @@ static void periodic_ox3(GridS *pGrid)
 
   return;
 }
+
+/*----------------------------------------------------------------------------*/
+// PERIODICOFFSET test
+static void periodicoffset_ix1(GridS *pGrid)
+{
+  int is = pGrid->is, ie = pGrid->ie;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+#ifdef MHD
+  int ju, ku; /* j-upper, k-upper */
+#endif
+
+  int noff = 2; // Important! # of cells offset
+  if(noff >= nghost) {
+    ath_error("Number of offset cells has to be smaller than number of ghost"
+              "cells (now %d vs %d)", noff, nghost);
+  }
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->U[k][j][is-i] = pGrid->U[k][j + noff][ie-(i-1)];
+      }
+    }
+  }
+
+#ifdef MHD
+  ath_error("MHD with periodic offset boundaries not yet initialized.");
+/* B1i is not set at i=is-nghost */
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost-1; i++) {
+        pGrid->B1i[k][j][is-i] = pGrid->B1i[k][j][ie-(i-1)];
+      }
+    }
+  }
+
+  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=ju; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->B2i[k][j][is-i] = pGrid->B2i[k][j][ie-(i-1)];
+      }
+    }
+  }
+
+  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
+  for (k=ks; k<=ku; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->B3i[k][j][is-i] = pGrid->B3i[k][j][ie-(i-1)];
+      }
+    }
+  }
+#endif /* MHD */
+
+  return;
+}
+
+static void periodicoffset_ox1(GridS *pGrid)
+{
+  int is = pGrid->is, ie = pGrid->ie;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+#ifdef MHD
+  int ju, ku; /* j-upper, k-upper */
+#endif
+  int noff = 2;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->U[k][j][ie+i] = pGrid->U[k][j - noff][is+(i-1)];
+      }
+    }
+  }
+
+#ifdef MHD
+/* B1i is not set at i=ie+1 */
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=2; i<=nghost; i++) {
+        pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][is+(i-1)];
+      }
+    }
+  }
+
+  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=ju; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][is+(i-1)];
+      }
+    }
+  }
+
+  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
+  for (k=ks; k<=ku; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][is+(i-1)];
+      }
+    }
+  }
+#endif /* MHD */
+
+  return;
+}
+
 
 /*----------------------------------------------------------------------------*/
 /*! \fn static void conduct_ix1(GridS *pGrid)
