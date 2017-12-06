@@ -1,0 +1,116 @@
+<job>
+problem_id   =  cloud
+maxout       =  3
+num_domains  =  4
+
+
+<output1>
+out_fmt  =  hst
+dt       =  0.05
+
+
+<output2>
+out_fmt  =  vtk
+dt       =  0.1
+out      =  prim
+
+
+<output3>
+out_fmt  = rst
+dt       = 1.0
+
+
+<time>
+cour_no  =  0.4
+nlim     =  2000000
+tlim     =  100.0
+
+
+<domain1>
+level     =  0
+Nx1       =  128
+x1min     = -8.0
+x1max     =  8.0
+
+Nx2       =  64
+x2min     = -4.0
+x2max     =  4.0
+bc_ix2    =  2
+bc_ox2    =  2
+
+Nx3       =  64
+x3min     = -4.0
+x3max     = 4.0
+bc_ix3    =  2
+bc_ox3    =  2
+
+NGrid_x1  =  8
+NGrid_x2  =  1
+NGrid_x3  =  1
+
+
+<domain2>
+level     =  1
+
+Nx1       =  128
+Nx2       =  64
+Nx3       =  64
+
+iDisp     =  64
+jDisp     =  32
+kDisp     =  32
+
+NGrid_x1  =  8
+NGrid_x2  =  1
+NGrid_x3  =  1
+
+
+
+<domain3>
+level     =  2
+
+Nx1       =  128
+Nx2       =  64
+Nx3       =  64
+
+iDisp     =  192
+jDisp     =  96
+kDisp     =  96
+
+NGrid_x1  =  8
+NGrid_x2  =  1
+NGrid_x3  =  1
+
+
+
+<domain4>
+level     =  3
+
+Nx1       =  128
+Nx2       =  64
+Nx3       =  64
+
+iDisp     =  448
+jDisp     =  224
+kDisp     =  224
+
+NGrid_x1  =  8
+NGrid_x2  =  1
+NGrid_x3  =  1
+
+
+
+
+
+<problem>
+gamma    =  1.6666666666666667
+vflow    =  1.4
+drat     =  1000.0
+betain   =  1.0
+betaout  =  1.0
+Bz    =  0.0 #.0001
+<par_end>
+
+# Local Variables:
+# mode: athinput
+# End:

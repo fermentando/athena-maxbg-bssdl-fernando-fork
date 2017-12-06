@@ -1,12 +1,12 @@
 #include "copyright.h"
 /*============================================================================*/
-/*! \file show_config.c 
+/*! \file show_config.c
  *  \brief Outputs information on configuration of Athena.
  *
  * PURPOSE: Outputs information on configuration of Athena.
  *
  * CONTAINS PUBLIC FUNCTIONS:
- * - show_config()     - prints diagnostic message showinf code configuration 
+ * - show_config()     - prints diagnostic message showinf code configuration
  * - show_config_par() - adds configuration information to database used by par
  *============================================================================*/
 
@@ -65,12 +65,6 @@ void show_config(void)
   ath_pout(0," Viscosity:               ON\n");
 #else
   ath_pout(0," Viscosity:               OFF\n");
-#endif
-
-#if defined(OPERATOR_SPLIT_COOLING)
-  ath_pout(0," Cooling:                 ON\n");
-#else
-  ath_pout(0," Cooling:                 OFF\n");
 #endif
 
 #if defined(THERMAL_CONDUCTION)

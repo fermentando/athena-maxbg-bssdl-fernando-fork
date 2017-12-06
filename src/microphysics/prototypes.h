@@ -1,5 +1,5 @@
 #ifndef MICROPHYS_PROTOTYPES_H
-#define MICROPHYS_PROTOTYPES_H 
+#define MICROPHYS_PROTOTYPES_H
 #include "../copyright.h"
 /*============================================================================*/
 /*! \file prototypes.h
@@ -52,18 +52,5 @@ void viscosity(DomainS *pD);
 void viscosity_init(MeshS *pM);
 void viscosity_destruct(void);
 #endif
-
-/* integrate_cooling.c */
-void integrate_cooling(MeshS *pM);
-void integrate_cooling_init(MeshS *pM);
-void integrate_cooling_destruct(void);
-
-#ifdef OPERATOR_SPLIT_COOLING
-/* cool_solver.c */
-void cooling_solver(GridS *pG);
-void cooling_solver_init(MeshS *pM);
-void cooling_solver_destruct(void);
-#endif
-
 
 #endif /* MICROPHYS_PROTOTYPES_H */

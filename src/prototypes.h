@@ -1,5 +1,5 @@
 #ifndef PROTOTYPES_H
-#define PROTOTYPES_H 
+#define PROTOTYPES_H
 #include "copyright.h"
 /*============================================================================*/
 /*! \file prototypes.h
@@ -52,7 +52,7 @@ int ath_pout(const int level, const char *fmt, ...);
 /* ath_files.c */
 char *ath_fname(const char *path, const char *basename,
                 const char *levstr, const char *domstr,
-                const int dlen, const int idump, 
+                const int dlen, const int idump,
                 const char *id, const char *ext);
 
 /*----------------------------------------------------------------------------*/
@@ -102,10 +102,7 @@ void RemapVar(DomainS *pD, Real ***RemapVar, Real dt);
 void bvals_shear_init(MeshS *pM);
 void bvals_shear_destruct(void);
 void Fargo(DomainS *pD);
-#ifndef ISOTHERMAL
-Real csxb(void);
 #endif
-#endif 
 
 /*----------------------------------------------------------------------------*/
 /* cc_pos.c */
@@ -132,7 +129,6 @@ ConsS Prim_to_Cons(const PrimS *pW);
 Prim1DS Cons1D_to_Prim1D(const Cons1DS *pU, const Real *pBx);
 Cons1DS Prim1D_to_Cons1D(const Prim1DS *pW, const Real *pBx);
 #ifndef SPECIAL_RELATIVITY
-Real cfast_prim(const Prim1DS *W, const Real *Bx);
 Real cfast(const Cons1DS *U, const Real *Bx);
 #endif
 #ifdef SPECIAL_RELATIVITY
@@ -165,6 +161,7 @@ void data_output(MeshS *pM, const int flag);
 void add_rst_out(OutputS *new_out);
 void data_output_destruct(void);
 void dump_history_enroll(const ConsFun_t pfun, const char *label);
+void dump_history_enroll_alt(const ConsFun_t pfun, const char *label);
 Real ***OutData3(GridS *pGrid, OutputS *pOut, int *Nx1, int *Nx2, int *Nx3);
 Real  **OutData2(GridS *pGrid, OutputS *pOut, int *Nx1, int *Nx2);
 Real   *OutData1(GridS *pGrid, OutputS *pOut, int *Nx1);
@@ -210,6 +207,7 @@ void par_dist_mpi(const int mytid, MPI_Comm comm);
 /* prob/PROBLEM.c ; linked to problem.c */
 void problem(DomainS *pD);
 void Userwork_in_loop(MeshS *pM);
+void Userwork_before_loop(MeshS *pM);
 void Userwork_after_loop(MeshS *pM);
 void problem_read_restart(MeshS *pM, FILE *fp);
 void problem_write_restart(MeshS *pM, FILE *fp);
@@ -245,26 +243,6 @@ void Prolongate(MeshS *pM);
 void SMR_init(MeshS *pM);
 
 /*----------------------------------------------------------------------------*/
-/* units.c */
-typedef struct Const_S{
-  Real G;
-  Real Msun;
-  Real Lsun;
-  Real Myr;
-  Real pc;
-  Real kpc;
-  Real kms;
-  Real mH;
-  Real aR;
-  Real kB;
-  Real c;
-}ConstS;
-
-
-void init_units(UnitS *unit);
-void init_consts(ConstS *consts);
-
-/*----------------------------------------------------------------------------*/
 /* utils.c */
 char *ath_strdup(const char *in);
 int ath_gcd(int a, int b);
@@ -290,17 +268,6 @@ Real vecpot2b2i(Real (*A1)(Real,Real,Real), Real (*A3)(Real,Real,Real),
                 const GridS *pG, const int i, const int j, const int k);
 Real vecpot2b3i(Real (*A1)(Real,Real,Real), Real (*A2)(Real,Real,Real),
                 const GridS *pG, const int i, const int j, const int k);
-void rkqs(Real y[], Real dydx[], int n, Real *x, Real htry, Real eps,
-          Real yscal[], Real *hdid, Real *hnext,
-          void (*derivs)(Real, Real [], Real []));
-void odeint(Real ystart[], int nvar, Real x1, Real x2, Real eps, Real h1,
-            Real hmin, int *nok, int *nbad, int kmax, int *kount,
-            Real *xp, Real **yp, Real dxsav,
-            void (*derivs)(Real, Real [], Real []),
-            void (*rkqs)(Real [], Real [], int, Real *, Real, Real, Real [],
-                         Real *, Real *, void (*)(Real, Real [], Real [])));
-void odeint_lite(Real ystart[], int nvar, Real x1, Real x2, Real eps, Real h1, Real hmin,
-                 void (*derivs)(Real, Real [], Real []));
 #ifdef PARTICLES
 void InverseMatrix(Real **a, int n, Real **b);
 void MatrixMult(Real **a, Real **b, int m, int n, int l, Real **c);

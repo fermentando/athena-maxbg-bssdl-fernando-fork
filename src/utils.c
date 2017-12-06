@@ -5,8 +5,8 @@
  *
  * PURPOSE: A variety of useful utility functions.
  *
- * CONTAINS PUBLIC FUNCTIONS: 
- * - ath_strdup()     - not supplied by fancy ANSI C, but ok in C89 
+ * CONTAINS PUBLIC FUNCTIONS:
+ * - ath_strdup()     - not supplied by fancy ANSI C, but ok in C89
  * - ath_gcd()        - computes greatest common divisor by Euler's method
  * - ath_big_endian() - run-time detection of endianism of the host cpu
  * - ath_bswap()      - fast byte swapping routine
@@ -27,7 +27,7 @@
 
 /*----------------------------------------------------------------------------*/
 /*! \fn char *ath_strdup(const char *in)
- *  \brief This is really strdup(), but strdup is not available in 
+ *  \brief This is really strdup(), but strdup is not available in
  *   ANSI  (-pendantic or -ansi will leave it undefined in gcc)
  *   much like allocate.
  */
@@ -50,7 +50,7 @@ char *ath_strdup(const char *in)
 int ath_gcd(int a, int b)
 {
   int c;
-  if(b>a) {c=a; a=b; b=c;} 
+  if(b>a) {c=a; a=b; b=c;}
   while((c=a%b)) {a=b; b=c;}
   return b;
 }
@@ -71,14 +71,14 @@ int ath_big_endian(void)
 
 /*----------------------------------------------------------------------------*/
 /*! \fn void ath_bswap(void *vdat, int len, int cnt)
- *  \brief Swap bytes, code stolen from NEMO  
+ *  \brief Swap bytes, code stolen from NEMO
  */
- 
+
 void ath_bswap(void *vdat, int len, int cnt)
 {
   char tmp, *dat = (char *) vdat;
   int k;
- 
+
   if (len==1)
     return;
   else if (len==2)
@@ -173,7 +173,7 @@ void minmax2(Real **data, int nx2, int nx1, Real *dmino, Real *dmaxo)
   *dmaxo = dmax;
 }
 
-/*! \fn void minmax3(Real ***data, int nx3, int nx2, int nx1, Real *dmino, 
+/*! \fn void minmax3(Real ***data, int nx3, int nx2, int nx1, Real *dmino,
  *                   Real *dmaxo)
  *  \brief Return the min and max of a 3D array using registers
  *  Works on data of type float, not Real.
@@ -187,8 +187,8 @@ void minmax3(Real ***data, int nx3, int nx2, int nx1, Real *dmino, Real *dmaxo)
   for (k=0; k<nx3; k++) {
     for (j=0; j<nx2; j++) {
       for (i=0; i<nx1; i++) {
-	dmin = MIN(dmin,data[k][j][i]);
-	dmax = MAX(dmax,data[k][j][i]);
+        dmin = MIN(dmin,data[k][j][i]);
+        dmax = MAX(dmax,data[k][j][i]);
       }
     }
   }
@@ -199,7 +199,7 @@ void minmax3(Real ***data, int nx3, int nx2, int nx1, Real *dmino, Real *dmaxo)
 /*----------------------------------------------------------------------------*/
 /*! \fn  void do_nothing_bc(GridS *pG)
  *
- *  \brief DOES ABSOLUTELY NOTHING!  THUS, WHATEVER THE BOUNDARY ARE SET TO 
+ *  \brief DOES ABSOLUTELY NOTHING!  THUS, WHATEVER THE BOUNDARY ARE SET TO
  *  INITIALLY, THEY REMAIN FOR ALL TIME.
  */
 void do_nothing_bc(GridS *pG __attribute((unused)))
@@ -212,7 +212,7 @@ void do_nothing_bc(GridS *pG __attribute((unused)))
 
 /*----------------------------------------------------------------------------*/
 /*! \fn Real compute_div_b(GridS *pG)
- *  \brief COMPUTE THE DIVERGENCE OF THE MAGNETIC FIELD USING FACE-CENTERED 
+ *  \brief COMPUTE THE DIVERGENCE OF THE MAGNETIC FIELD USING FACE-CENTERED
  *  FIELDS OVER THE ENTIRE ACTIVE GRID.  RETURNS THE MAXIMUM OF |DIV B|.
  */
 Real compute_div_b(GridS *pG)
@@ -255,18 +255,18 @@ Real compute_div_b(GridS *pG)
 }
 
 /*----------------------------------------------------------------------------*/
-/*! \fn void compute_l1_error(const char *problem, const MeshS *pM, 
- *                            const ConsS ***RootSoln, const int errortype) 
- *  \brief COMPUTE THE L1-ERRORS IN ALL VARIABLES AT THE CURRENT 
+/*! \fn void compute_l1_error(const char *problem, const MeshS *pM,
+ *                            const ConsS ***RootSoln, const int errortype)
+ *  \brief COMPUTE THE L1-ERRORS IN ALL VARIABLES AT THE CURRENT
  *  (USUALLY THE FINAL)
- *  TIMESTEP USING THE INITIAL SOLUTION.  
+ *  TIMESTEP USING THE INITIAL SOLUTION.
  *
  *  THIS MEANS THAT THE SOLUTION MUST
  *  EITHER BE STATIC (STEADY-STATE) OR MUST HAVE COMPLETED A FULL PERIOD OF
  *  ROTATION, ETC.  FOR THE ERRORTYPE FLAG, 0 MEANS ABSOLUTE ERROR, AND
  *  1 MEANS AVERAGE ERROR PER GRID CELL.
  */
-void compute_l1_error(const char *problem, const MeshS *pM, 
+void compute_l1_error(const char *problem, const MeshS *pM,
                       const ConsS ***RootSoln, const int errortype)
 {
   DomainS *pD=&(pM->Domain[0][0]);
@@ -317,7 +317,7 @@ void compute_l1_error(const char *problem, const MeshS *pM,
         error.d   += dVol*fabs(pG->U[k][j][i].d   - RootSoln[k][j][i].d );
         error.M1  += dVol*fabs(pG->U[k][j][i].M1  - RootSoln[k][j][i].M1);
         error.M2  += dVol*fabs(pG->U[k][j][i].M2  - RootSoln[k][j][i].M2);
-        error.M3  += dVol*fabs(pG->U[k][j][i].M3  - RootSoln[k][j][i].M3); 
+        error.M3  += dVol*fabs(pG->U[k][j][i].M3  - RootSoln[k][j][i].M3);
 #ifdef MHD
         error.B1c += dVol*fabs(pG->U[k][j][i].B1c - RootSoln[k][j][i].B1c);
         error.B2c += dVol*fabs(pG->U[k][j][i].B2c - RootSoln[k][j][i].B2c);
@@ -421,7 +421,7 @@ void compute_l1_error(const char *problem, const MeshS *pM,
   rms_error = SQR(total_error.d) + SQR(total_error.M1) + SQR(total_error.M2)
                 + SQR(total_error.M3);
 #ifdef MHD
-  rms_error += SQR(total_error.B1c) + SQR(total_error.B2c) 
+  rms_error += SQR(total_error.B1c) + SQR(total_error.B2c)
                + SQR(total_error.B3c);
 #endif /* MHD */
 #ifndef ISOTHERMAL
@@ -468,10 +468,10 @@ void compute_l1_error(const char *problem, const MeshS *pM,
   fprintf(fp,"%d  %d  %d  %e",Nx1,Nx2,Nx3,rms_error);
 
   fprintf(fp,"  %e  %e  %e  %e",
-	  (total_error.d /totVol),
-	  (total_error.M1/totVol),
-	  (total_error.M2/totVol),
-	  (total_error.M3/totVol));
+          (total_error.d /totVol),
+          (total_error.M1/totVol),
+          (total_error.M2/totVol),
+          (total_error.M3/totVol));
 
 #ifndef ISOTHERMAL
   fprintf(fp,"  %e",total_error.E/totVol);
@@ -479,9 +479,9 @@ void compute_l1_error(const char *problem, const MeshS *pM,
 
 #ifdef MHD
   fprintf(fp,"  %e  %e  %e",
-	  (total_error.B1c/totVol),
-	  (total_error.B2c/totVol),
-	  (total_error.B3c/totVol));
+          (total_error.B1c/totVol),
+          (total_error.B2c/totVol),
+          (total_error.B3c/totVol));
 #endif /* MHD */
 #if (NSCALARS > 0)
     for (n=0; n<NSCALARS; n++) {
@@ -502,16 +502,16 @@ void compute_l1_error(const char *problem, const MeshS *pM,
  *============================================================================*/
 
 /*----------------------------------------------------------------------------*/
-/*! \fn int sign_change(Real (*func)(const Real,const Real), const Real a0, 
+/*! \fn int sign_change(Real (*func)(const Real,const Real), const Real a0,
  *                      const Real b0, const Real x, Real *a, Real *b)
- *  \brief SEARCH FOR A SIGN CHANGE.  
+ *  \brief SEARCH FOR A SIGN CHANGE.
  *
  *  THIS FUNCTION PARTITIONS THE INTERVAL (a0,b0) INTO
  *  2^k EQUALLY SPACED GRID POINTS, EVALUATES THE FUNCTION f AT THOSE POINTS,
  *  AND THEN SEARCHES FOR A SIGN CHANGE IN f BETWEEN ADJACENT GRID POINTS.  THE
  *  FIRST SUCH INTERVAL FOUND, (a,b), IS RETURNED.
  */
-int sign_change(Real (*func)(const Real,const Real), const Real a0, 
+int sign_change(Real (*func)(const Real,const Real), const Real a0,
                              const Real b0, const Real x, Real *a, Real *b) {
   const int kmax=20;
   int k, n, i;
@@ -533,15 +533,16 @@ int sign_change(Real (*func)(const Real,const Real), const Real a0,
   }
 //   ath_error("[sign_change]: No sign change was detected in (%f,%f) for x=%f!\n",a0,b0,x);
   return 0;
-} 
+}
+
 
 /*----------------------------------------------------------------------------*/
-/*! \fn int bisection(Real (*func)(const Real,const Real), const Real a0, 
- *                    const Real b0, const Real x, Real *root) 
+/*! \fn int bisection(Real (*func)(const Real,const Real), const Real a0,
+ *                    const Real b0, const Real x, Real *root)
  *  \brief THIS FUNCTION IMPLEMENTS THE BISECTION METHOD FOR ROOT FINDING.
  */
 int bisection(Real (*func)(const Real,const Real), const Real a0, const Real b0,
-                           const Real x, Real *root) 
+                           const Real x, Real *root)
 {
   const Real tol = 1.0E-10;
   const int maxiter = 400;
@@ -598,245 +599,6 @@ int bisection(Real (*func)(const Real,const Real), const Real a0, const Real b0,
   return 0;
 }
 
-/*============================================================================
- * ODE INTEGRATION FUNCTIONS
- *============================================================================*/
-
-/*----------------------------------------------------------------------------*/
-/* PRIVATE FUNCTION rkck
- *
- * Given values for n variables y[1..n] and their derivatives dydx[1..n] known
- * at x, use the fifth-order Cash-Karp Runge-Kutta method to advance the
- * solution over an interval h and return the incremented variables as
- * yout[1..n]. Also return an estimate of the local truncation error in yout
- * using the embedded fourth-order method. The user supplies the routine
- * derivs(x,y,dydx), which returns derivatives dydx at x.
- * ADAPTED FROM NUMERICAL RECIPES IN C BY AARON SKINNER
- */
-void rkck(Real y[], Real dydx[], int n, Real x, Real h, Real yout[],
-          Real yerr[], void (*derivs)(Real, Real [], Real []))
-{
-  int i;
-  static Real a2=0.2,a3=0.3,a4=0.6,a5=1.0,a6=0.875,b21=0.2,
-              b31=3.0/40.0,b32=9.0/40.0,b41=0.3,b42 = -0.9,b43=1.2,
-              b51=-11.0/54.0,b52=2.5,b53=-70.0/27.0,b54=35.0/27.0,
-              b61=1631.0/55296.0,b62=175.0/512.0,b63=575.0/13824.0,
-              b64=44275.0/110592.0,b65=253.0/4096.0,c1=37.0/378.0,
-              c3=250.0/621.0,c4=125.0/594.0,c6=512.0/1771.0,
-              dc5=-277.00/14336.0;
-  Real dc1=c1-2825.0/27648.0,dc3=c3-18575.0/48384.0,
-       dc4=c4-13525.0/55296.0,dc6=c6-0.25;
-  Real *ak2,*ak3,*ak4,*ak5,*ak6,*ytemp;
-
-  if ((ak2   = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ak2\n");
-  if ((ak3   = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ak3\n");
-  if ((ak4   = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ak4\n");
-  if ((ak5   = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ak5\n");
-  if ((ak6   = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ak6\n");
-  if ((ytemp = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkck]: Error allocating memory for 1D vector ytemp\n");
-
-  for (i=0; i<n; i++)  /* First step. */
-    ytemp[i] = y[i] + b21*h*dydx[i];
-  (*derivs)(x+a2*h,ytemp,ak2);  /* Second step. */
-  for (i=0; i<n; i++)  /* Second step. */
-  ytemp[i] = y[i]+h*(b31*dydx[i] + b32*ak2[i]);
-  (*derivs)(x+a3*h,ytemp,ak3);  /* Third step. */
-  for (i=0; i<n; i++)
-    ytemp[i] = y[i] + h*(b41*dydx[i] + b42*ak2[i] + b43*ak3[i]);
-  (*derivs)(x+a4*h,ytemp,ak4);  /* Fourth step. */
-  for (i=0; i<n; i++)
-    ytemp[i] = y[i] + h*(b51*dydx[i] + b52*ak2[i] + b53*ak3[i] + b54*ak4[i]);
-  (*derivs)(x+a5*h,ytemp,ak5);  /* Fifth step. */
-  for (i=0; i<n; i++)
-    ytemp[i] = y[i] + h*(b61*dydx[i] + b62*ak2[i] + b63*ak3[i] + b64*ak4[i] + b65*ak5[i]);
-  (*derivs)(x+a6*h,ytemp,ak6);  /* Sixth step. */
-  for (i=0; i<n; i++)  /* Accumulate increments with proper weights. */
-    yout[i] = y[i] + h*(c1*dydx[i] + c3*ak3[i] + c4*ak4[i] + c6*ak6[i]);
-  for (i=0; i<n; i++)
-    yerr[i] = h*(dc1*dydx[i] + dc3*ak3[i] + dc4*ak4[i] + dc5*ak5[i] + dc6*ak6[i]);
-    /* Estimate error as difference between fourth and fifth order methods. */
-
-  if (ytemp != NULL) free_1d_array(ytemp);
-  if (ak6   != NULL) free_1d_array(ak6);
-  if (ak5   != NULL) free_1d_array(ak5);
-  if (ak4   != NULL) free_1d_array(ak4);
-  if (ak3   != NULL) free_1d_array(ak3);
-  if (ak2   != NULL) free_1d_array(ak2);
-}
-
-
-/*----------------------------------------------------------------------------*/
-/* FUNCTION rkqs
- *
- * Fifth-order Runge-Kutta step with monitoring of local truncation error to
- * ensure accuracy and adjust stepsize. Input are the dependent variable
- * vector y[1..n] and its derivative dydx[1..n] at the starting value of the
- * independent variable x. Also input are the stepsize to be attempted htry,
- * the required accuracy eps, and the vector yscal[1..n] against which the
- * error is scaled. On output, y and x are replaced by their new values, hdid
- * is the stepsize that was actually accomplished, and hnext is the estimated
- * next stepsize. derivs is the user-supplied routine that computes the
- * right-hand side derivatives.
- * ADAPTED FROM NUMERICAL RECIPES IN C BY AARON SKINNER
- */
-#define SAFETY 0.9
-#define PGROW -0.2
-#define PSHRNK -0.25
-#define ERRCON 1.89e-4
-/* The value ERRCON equals (5/SAFETY) raised to the power (1/PGROW), see use below. */
-void rkqs(Real y[], Real dydx[], int n, Real *x, Real htry, Real eps,
-          Real yscal[], Real *hdid, Real *hnext,
-          void (*derivs)(Real, Real [], Real []))
-{
-  int i;
-  Real errmax,h,htemp,xnew,*yerr,*ytemp;
-
-  if ((yerr  = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkqs]: Error allocating memory for 1D vector yerr\n");
-  if ((ytemp = (Real*)calloc_1d_array(n,sizeof(Real))) == NULL)
-    ath_error("[rkqs]: Error allocating memory for 1D vector ytemp\n");
-
-  h = htry;  /* Set stepsize to the initial trial value. */
-
-  for (;;) {
-    rkck(y,dydx,n,*x,h,ytemp,yerr,derivs);  /* Take a step. */
-    errmax=0.0;  /* Evaluate accuracy. */
-    for (i=0; i<n; i++)
-      errmax = MAX(errmax,fabs(yerr[i]/yscal[i]));
-    errmax /= eps;  /* Scale relative to required tolerance. */
-    if (errmax <= 1.0)
-      break;  /* Step succeeded. Compute size of next step. */
-    htemp = SAFETY*h*pow(errmax,PSHRNK);  /* Truncation error too large, reduce stepsize. */
-    h = (h >= 0.0 ? MAX(htemp,0.1*h) : MIN(htemp,0.1*h));  /* No more than a factor of 10. */
-    xnew = (*x) + h;
-    if (xnew == *x) {
-//      for (i=0; i<n; i++)
-//      printf("%d of %d:  yscal=%1.10e, dydx=%1.10e, y=%1.10e, x=%1.10e\n",i,n,yscal[i],dydx[i],y[i],*x);
-//      printf("\t htry=%1.10e, xoldest=%1.10e, xolder=%1.10e, xold=%1.10e\n",htry,xold,xx[step-2],xx[step-1]);
-      ath_error("[rkqs]:  Stepsize underflow!\n");
-    }
-  }
-
-  if (errmax > ERRCON)
-    *hnext = SAFETY*h*pow(errmax,PGROW);
-  else *hnext = 5.0*h;
-  *x += (*hdid=h);
-  for (i=0; i<n; i++)
-    y[i] = ytemp[i];
-
-  if (ytemp != NULL) free_1d_array(ytemp);
-  if (yerr  != NULL) free_1d_array(yerr);
-}
-
-/*----------------------------------------------------------------------------*/
-/* FUNCTION odeint
- *
- * Runge-Kutta driver with adaptive stepsize control. Integrate starting values
- * ystart[1..nvar] from x1 to x2 with accuracy eps, storing intermediate
- * results in global variables. h1 should be set as a guessed first stepsize,
- * hmin as the minimum allowed stepsize (can be zero). On output nok and nbad
- * are the number of good and bad (but retried and fixed) steps taken, and
- * ystart is replaced by values at the end of the integration interval.
- * derivs is the user-supplied routine for calculating the right-hand side
- * derivative, while rkqs is the name of the stepper routine to be used.
- * ADAPTED FROM NUMERICAL RECIPES IN C BY AARON SKINNER
- */
-#define MAXSTP 10000
-// extern int kmax,kount;
-// extern Real *xp,**yp,dxsav;
-/* User storage for intermediate results. Preset kmax and dxsav in the calling
- * program. If kmax != 0, results are stored at approximate intervals dxsav in
- * the arrays xp[1..kount], yp[1..nvar] [1..kount], where kount is output by
- * odeint. Defining declarations for these variables, with memory allocations
- * xp[1..kmax] and yp[1..nvar][1..kmax] for the arrays, should be in the
- * calling program. */
-
-void odeint(Real ystart[], int nvar, Real x1, Real x2, Real eps, Real h1,
-            Real hmin, int *nok, int *nbad, int kmax, int *kount,
-            Real *xp, Real **yp, Real dxsav,
-            void (*derivs)(Real, Real [], Real []),
-            void (*rkqs)(Real [], Real [], int, Real *, Real, Real, Real [],
-                         Real *, Real *, void (*)(Real, Real [], Real [])))
-{
-  int nstp,i;
-  Real xsav,x,hnext,hdid,h;
-  Real *yscal,*y,*dydx;
-
-  if ((yscal = (Real*)calloc_1d_array(nvar,sizeof(Real))) == NULL)
-    ath_error("[odeint]: Error allocating memory for 1D vector yscal\n");
-  if ((y     = (Real*)calloc_1d_array(nvar,sizeof(Real))) == NULL)
-    ath_error("[odeint]: Error allocating memory for 1D vector y\n");
-  if ((dydx  = (Real*)calloc_1d_array(nvar,sizeof(Real))) == NULL)
-    ath_error("[odeint]: Error allocating memory for 1D vector dydx\n");
-
-  x = x1;
-  h = fabs(h1)*SIGN(x2-x1);
-  *nok = *nbad = *kount = 0;
-  for (i=0; i<nvar; i++)
-    y[i] = ystart[i];
-  if (kmax > 0)  /* Assures storage of first step. */
-    xsav = x - dxsav*2.0;
-  for (nstp=1; nstp<=MAXSTP; nstp++) {  /* Take at most MAXSTP steps. */
-    (*derivs)(x,y,dydx);
-    for (i=0; i<nvar; i++)
-      yscal[i] = fabs(y[i]) + fabs(dydx[i]*h) + TINY_NUMBER;
-      /* Scaling used to monitor accuracy. This general-purpose choice can be modified if need be. */
-    if (kmax > 0 && *kount < kmax-1 && fabs(x-xsav) > fabs(dxsav)) {  /* Store intermediate results. */
-      xp[++(*kount)] = x;
-      for (i=1; i<=nvar; i++)
-        yp[i][*kount] = y[i];
-      xsav = x;
-    }
-    if ((x+h-x2)*(x+h-x1) > 0.0)  /* If stepsize can overshoot, decrease. */
-      h = x2 - x;
-    (*rkqs)(y,dydx,nvar,&x,h,eps,yscal,&hdid,&hnext,derivs);
-    if (hdid == h)
-      ++(*nok);
-    else
-      ++(*nbad);
-    if ((x-x2)*(x2-x1) >= 0.0) {  /* Are we done? */
-      for (i=0; i<nvar; i++)
-        ystart[i] = y[i];
-      if (kmax) {
-        xp[++(*kount)] = x;  /* Save final step. */
-        for (i=1; i<=nvar; i++)
-          yp[i][*kount] = y[i];
-      }
-      if (dydx  != NULL) free_1d_array(dydx);
-      if (y     != NULL) free_1d_array(y);
-      if (yscal != NULL) free_1d_array(yscal);
-      return;  /* Normal exit. */
-    }
-    if (fabs(hnext) <= hmin)
-      ath_error("[odeint]:  Step size too small!\n");
-    h = hnext;
-  }
-  ath_error("[odeint]:  Too many steps!\n");
-}
-
-
-/*----------------------------------------------------------------------------*/
-/* FUNCTION odeint_lite
- *
- * Minimal arguments wrapper function for odeint above.
- * WRITTEN BY AARON SKINNER.
- */
-void odeint_lite(Real ystart[], int nvar, Real x1, Real x2, Real eps, Real h1, Real hmin,
-                 void (*derivs)(Real, Real [], Real []))
-{
-  int nok, nbad, kount;
-  odeint(ystart, nvar, x1, x2, eps, h1, hmin, &nok, &nbad, 0, &kount,
-         NULL, NULL, 0.0, derivs, rkqs);
-//printf("nok=%d, nbad=%d\n",nok,nbad);
-}
-
-
 
 /*============================================================================
  * QUADRATURE FUNCTIONS
@@ -845,17 +607,17 @@ void odeint_lite(Real ystart[], int nvar, Real x1, Real x2, Real eps, Real h1, R
 /*----------------------------------------------------------------------------*/
 /*! \fn Real trapzd(Real (*func)(Real), const Real a, const Real b, const int n,
  *		    const Real s)
- *  \brief THIS ROUTINE COMPUTES THE nTH STAGE OF REFINEMENT OF AN EXTENDED 
- *  TRAPEZOIDAL RULE.  
+ *  \brief THIS ROUTINE COMPUTES THE nTH STAGE OF REFINEMENT OF AN EXTENDED
+ *  TRAPEZOIDAL RULE.
  *
- * func IS INPUT AS A POINTER TO THE FUNCTION TO BE INTEGRATED BETWEEN 
- * LIMITS a AND b, ALSO INPUT. WHEN CALLED WITH n=1, THE ROUTINE RETURNS THE 
- * CRUDEST ESTIMATE OF \int_a^b f(R) R dR.  SUBSEQUENT CALLS WITH n=2,3,... 
- * (IN THAT SEQUENTIAL ORDER) WILL IMPROVE THE ACCURACY BY ADDING 2n-2 
- * ADDITIONAL INTERIOR POINTS. 
- * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER 
+ * func IS INPUT AS A POINTER TO THE FUNCTION TO BE INTEGRATED BETWEEN
+ * LIMITS a AND b, ALSO INPUT. WHEN CALLED WITH n=1, THE ROUTINE RETURNS THE
+ * CRUDEST ESTIMATE OF \int_a^b f(R) R dR.  SUBSEQUENT CALLS WITH n=2,3,...
+ * (IN THAT SEQUENTIAL ORDER) WILL IMPROVE THE ACCURACY BY ADDING 2n-2
+ * ADDITIONAL INTERIOR POINTS.
+ * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
-Real trapzd(Real (*func)(Real), const Real a, const Real b, const int n, 
+Real trapzd(Real (*func)(Real), const Real a, const Real b, const int n,
             const Real s)
 {
   Real x,tnm,sum,dx;
@@ -863,7 +625,7 @@ Real trapzd(Real (*func)(Real), const Real a, const Real b, const int n,
 
   if (n == 1) {
     return 0.5*(b-a)*(func(a)+func(b));
-  } 
+  }
   else {
     for (it=1,j=1; j<n-1; j++) it <<= 1;  /* it = 2^(n-2) */
     tnm = it;
@@ -876,19 +638,19 @@ Real trapzd(Real (*func)(Real), const Real a, const Real b, const int n,
 
 /*----------------------------------------------------------------------------*/
 /*! \fn Real qsimp(Real (*func)(Real), const Real a, const Real b)
- *  \brief RETURNS THE INTEGRAL OF THE FUNCTION func FROM a TO b. 
+ *  \brief RETURNS THE INTEGRAL OF THE FUNCTION func FROM a TO b.
  *
- * THE PARAMETER EPS 
- * CAN BE SET TO THE DESIRED FRACTIONAL ACCURACY AND JMAX SO THAT 2^(JMAX-1) 
- * IS THE MAXIMUM ALLOWED NUMBER OF STEPS.  INTEGRATION IS PERFORMED BY 
+ * THE PARAMETER EPS
+ * CAN BE SET TO THE DESIRED FRACTIONAL ACCURACY AND JMAX SO THAT 2^(JMAX-1)
+ * IS THE MAXIMUM ALLOWED NUMBER OF STEPS.  INTEGRATION IS PERFORMED BY
  * SIMPSON'S RULE.
- * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER 
+ * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
 
 #define EPS 1.0e-8
 #define JMAX 20
 
-Real qsimp(Real (*func)(Real), const Real a, const Real b) 
+Real qsimp(Real (*func)(Real), const Real a, const Real b)
 {
   int j;
   Real s,st,ost,os;
@@ -913,20 +675,20 @@ Real qsimp(Real (*func)(Real), const Real a, const Real b)
  *
  * RETURNS THE INTEGRAL OF A USER-SUPPLIED FUNCTION func OVER THE ONE-, TWO-,
  * OR THREE-DIMENSIONAL GRID CELL (i,j,k).  INTEGRATION IS PERFORMED USING qsimp.
- * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER 
+ * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
 static Real xsav,ysav,zsav,xmin,xmax,ymin,ymax,zmin,zmax;
 static Real (*nrfunc)(Real,Real,Real);
 
-/*! \fn Real avg1d(Real (*func)(Real, Real, Real), const GridS *pG, 
+/*! \fn Real avg1d(Real (*func)(Real, Real, Real), const GridS *pG,
  *                 const int i, const int j, const int k)
  *  \brief RETURNS THE INTEGRAL OF A USER-SUPPLIED FUNCTION func OVER THE ONE-
- * DIMENSIONAL GRID CELL (i,j,k).  
+ * DIMENSIONAL GRID CELL (i,j,k).
  *
  * INTEGRATION IS PERFORMED USING qsimp.
- * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER 
+ * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
-Real avg1d(Real (*func)(Real, Real, Real), const GridS *pG, 
+Real avg1d(Real (*func)(Real, Real, Real), const GridS *pG,
             const int i, const int j, const int k)
 {
   Real x1,x2,x3,dvol=pG->dx1;
@@ -945,15 +707,15 @@ Real avg1d(Real (*func)(Real, Real, Real), const GridS *pG,
   return qsimp(fx,xmin,xmax)/dvol;
 }
 
-/*! \fn Real avg2d(Real (*func)(Real, Real, Real), const GridS *pG, 
+/*! \fn Real avg2d(Real (*func)(Real, Real, Real), const GridS *pG,
  *                 const int i, const int j, const int k)
  *  \brief RETURNS THE INTEGRAL OF A USER-SUPPLIED FUNCTION func OVER THE TWO-
- * DIMENSIONAL GRID CELL (i,j,k).  
+ * DIMENSIONAL GRID CELL (i,j,k).
  *
  * INTEGRATION IS PERFORMED USING qsimp.
- * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER 
+ * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
-Real avg2d(Real (*func)(Real, Real, Real), const GridS *pG, 
+Real avg2d(Real (*func)(Real, Real, Real), const GridS *pG,
             const int i, const int j, const int k)
 {
   Real x1,x2,x3,dvol=pG->dx1*pG->dx2;
@@ -972,15 +734,15 @@ Real avg2d(Real (*func)(Real, Real, Real), const GridS *pG,
   return qsimp(fy,ymin,ymax)/dvol;
 }
 
-/*! \fn Real avg3d(Real (*func)(Real, Real, Real), const GridS *pG, 
+/*! \fn Real avg3d(Real (*func)(Real, Real, Real), const GridS *pG,
  *                 const int i, const int j, const int k)
  *  \brief RETURNS THE INTEGRAL OF A USER-SUPPLIED FUNCTION func OVER THE
- * THREE-DIMENSIONAL GRID CELL (i,j,k).  
+ * THREE-DIMENSIONAL GRID CELL (i,j,k).
  *
  * INTEGRATION IS PERFORMED USING qsimp.
  * ADAPTED FROM NUMERICAL RECIPES BY AARON SKINNER
  */
-Real avg3d(Real (*func)(Real, Real, Real), const GridS *pG, 
+Real avg3d(Real (*func)(Real, Real, Real), const GridS *pG,
             const int i, const int j, const int k)
 {
   Real x1,x2,x3,dvol=pG->dx1*pG->dx2*pG->dx3;

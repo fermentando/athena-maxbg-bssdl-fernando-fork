@@ -25,7 +25,7 @@
  *   The values of the integer flags (bc_ix1, etc.) are:
  *   - 1 = reflecting; 2 = outflow; 4 = periodic; 5 = conductor
  *   For flow-in bondaries (ghost zones set to pre-determined values), pointers
- *   to user-defined functions in the problem file are used. 
+ *   to user-defined functions in the problem file are used.
  *
  * For case (2) -- MPI BOUNDARIES
  *   We do the parallel synchronization by having every grid:
@@ -40,9 +40,9 @@
  *   done for this case; the BCs are left to be set later.
  *
  * With SELF-GRAVITY: BCs for Phi are set independently of the MHD variables
- *   in a separate function bvals_grav(). 
+ *   in a separate function bvals_grav().
  *
- * CONTAINS PUBLIC FUNCTIONS: 
+ * CONTAINS PUBLIC FUNCTIONS:
  * - bvals_mhd()      - calls appropriate functions to set ghost cells
  * - bvals_mhd_init() - sets function pointers used by bvals_mhd()
  * - bvals_mhd_fun()  - enrolls a pointer to a user-defined BC function
@@ -130,9 +130,6 @@ static void periodic_ox2(GridS *pG);
 static void periodic_ix3(GridS *pG);
 static void periodic_ox3(GridS *pG);
 
-static void periodicoffset_ix1(GridS *pG);
-static void periodicoffset_ox1(GridS *pG);
-
 static void conduct_ix1(GridS *pG);
 static void conduct_ox1(GridS *pG);
 static void conduct_ix2(GridS *pG);
@@ -162,7 +159,7 @@ static void unpack_ox3(GridS *pG);
 
 /*----------------------------------------------------------------------------*/
 /*! \fn void bvals_mhd(DomainS *pD)
- *  \brief Calls appropriate functions to set ghost zones.  
+ *  \brief Calls appropriate functions to set ghost zones.
  *
  *   The function
  *   pointers (*(pD->???_BCFun)) are set by bvals_init() to be either a
@@ -213,7 +210,7 @@ void bvals_mhd(DomainS *pD)
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx1_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
-      pack_ox1(pGrid); 
+      pack_ox1(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx1_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -238,7 +235,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[1]));
 
       /* pack and send data R */
-      pack_ox1(pGrid); 
+      pack_ox1(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx1_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -262,7 +259,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[0]));
 
       /* pack and send data L */
-      pack_ix1(pGrid); 
+      pack_ix1(pGrid);
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx1_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
@@ -283,7 +280,7 @@ void bvals_mhd(DomainS *pD)
     if (pGrid->rx1_id < 0 && pGrid->lx1_id < 0) {
       (*(pD->ix1_BCFun))(pGrid);
       (*(pD->ox1_BCFun))(pGrid);
-    } 
+    }
 
   }
 
@@ -315,7 +312,7 @@ void bvals_mhd(DomainS *pD)
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx2_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
-      pack_ox2(pGrid); 
+      pack_ox2(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx2_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -340,7 +337,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[1]));
 
       /* pack and send data R */
-      pack_ox2(pGrid); 
+      pack_ox2(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx2_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -364,7 +361,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[0]));
 
       /* pack and send data L */
-      pack_ix2(pGrid); 
+      pack_ix2(pGrid);
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx2_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
@@ -385,7 +382,7 @@ void bvals_mhd(DomainS *pD)
     if (pGrid->rx2_id < 0 && pGrid->lx2_id < 0) {
       (*(pD->ix2_BCFun))(pGrid);
       (*(pD->ox2_BCFun))(pGrid);
-    } 
+    }
 
 /* shearing sheet BCs; function defined in problem generator.
  * Enroll outflow BCs if perdiodic BCs NOT selected.  This assumes the root
@@ -431,7 +428,7 @@ void bvals_mhd(DomainS *pD)
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx3_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
-      pack_ox3(pGrid); 
+      pack_ox3(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx3_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -456,7 +453,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[1]));
 
       /* pack and send data R */
-      pack_ox3(pGrid); 
+      pack_ox3(pGrid);
       ierr = MPI_Isend(&(send_buf[1][0]),cnt,MPI_DOUBLE,pGrid->rx3_id,LtoR_tag,
         pD->Comm_Domain, &(send_rq[1]));
 
@@ -480,7 +477,7 @@ void bvals_mhd(DomainS *pD)
         pD->Comm_Domain, &(recv_rq[0]));
 
       /* pack and send data L */
-      pack_ix3(pGrid); 
+      pack_ix3(pGrid);
       ierr = MPI_Isend(&(send_buf[0][0]),cnt,MPI_DOUBLE,pGrid->lx3_id,RtoL_tag,
         pD->Comm_Domain, &(send_rq[0]));
 
@@ -501,7 +498,7 @@ void bvals_mhd(DomainS *pD)
     if (pGrid->rx3_id < 0 && pGrid->lx3_id < 0) {
       (*(pD->ix3_BCFun))(pGrid);
       (*(pD->ox3_BCFun))(pGrid);
-    } 
+    }
 
   }
 
@@ -547,17 +544,17 @@ void bvals_mhd_init(MeshS *pM)
       if(pD->ix1_BCFun == NULL){    /* BCFun ptr was not set in prob gen */
 
 /* Domain boundary is in interior of root */
-        if(pD->Disp[0] != 0) {      
+        if(pD->Disp[0] != 0) {
           pD->ix1_BCFun = ProlongateLater;
 
 /* Domain is at L-edge of root Domain, but not R-edge and periodic BC  */
         } else {
-          if(((pD->Disp[0] + pD->Nx[0])/irefine != pM->Nx[0]) && 
+          if(((pD->Disp[0] + pD->Nx[0])/irefine != pM->Nx[0]) &&
                pM->BCFlag_ix1 == 4) {
-            ath_error("[bvals_init]:level=%d Domain touching ix1b but not ox1b and periodic BC not allowed\n",nl); 
+            ath_error("[bvals_init]:level=%d Domain touching ix1b but not ox1b and periodic BC not allowed\n",nl);
 
 /* Domain is at L-edge of root Domain */
-          } else {                    
+          } else {
             switch(pM->BCFlag_ix1){
 
             case 1: /* Reflecting, B_normal=0 */
@@ -581,10 +578,6 @@ void bvals_mhd_init(MeshS *pM)
               pD->ix1_BCFun = conduct_ix1;
             break;
 
-            case 14: /* Periodic offset */
-              pD->ix1_BCFun = periodicoffset_ix1;
-              break;
-
             default:
               ath_perr(-1,"[bvals_init]:bc_ix1=%d unknown\n",pM->BCFlag_ix1);
               exit(EXIT_FAILURE);
@@ -603,8 +596,8 @@ void bvals_mhd_init(MeshS *pM)
 
 /* Domain is at R-edge of root Domain, but not L-edge and periodic BC */
         } else {
-          if((pD->Disp[0] != 0) && (pM->BCFlag_ox1 == 4)) {      
-            ath_error("[bvals_init]:level=%d Domain touching ox1b but not ix1b and periodic BC not allowed\n",nl); 
+          if((pD->Disp[0] != 0) && (pM->BCFlag_ox1 == 4)) {
+            ath_error("[bvals_init]:level=%d Domain touching ox1b but not ix1b and periodic BC not allowed\n",nl);
 
 
 /* Domain is at R-edge of root Domain */
@@ -632,13 +625,6 @@ void bvals_mhd_init(MeshS *pM)
               pD->ox1_BCFun = conduct_ox1;
             break;
 
-            case 14: /* Periodic with offset. */
-              pD->ox1_BCFun = periodicoffset_ox1;
-              break;
-
-
-
-
             default:
               ath_perr(-1,"[bvals_init]:bc_ox1=%d unknown\n",pM->BCFlag_ox1);
               exit(EXIT_FAILURE);
@@ -664,7 +650,7 @@ void bvals_mhd_init(MeshS *pM)
         } else {
           if(((pD->Disp[1] + pD->Nx[1])/irefine != pM->Nx[1]) &&
                pM->BCFlag_ix2 == 4) {
-            ath_error("[bvals_init]:level=%d Domain touching ix2b but not ox2b and periodic BC not allowed\n",nl); 
+            ath_error("[bvals_init]:level=%d Domain touching ix2b but not ox2b and periodic BC not allowed\n",nl);
 
 
 /* Domain is at L-edge of root Domain */
@@ -687,7 +673,7 @@ void bvals_mhd_init(MeshS *pM)
               }
 #endif /* MPI_PARALLEL */
             break;
-  
+
             case 5: /* Reflecting, B_normal!=0 */
               pD->ix2_BCFun = conduct_ix2;
             break;
@@ -711,7 +697,7 @@ void bvals_mhd_init(MeshS *pM)
 /* Domain is at R-edge of root Domain, but not L-edge and periodic BC */
         } else {
           if((pD->Disp[1] != 0) && (pM->BCFlag_ox2 == 4)) {
-            ath_error("[bvals_init]:level=%d Domain touching ox2b but not ix2b and periodic BC not allowed\n",nl); 
+            ath_error("[bvals_init]:level=%d Domain touching ox2b but not ix2b and periodic BC not allowed\n",nl);
 
 /* Domain is at R-edge of root Domain */
           } else {
@@ -763,7 +749,7 @@ void bvals_mhd_init(MeshS *pM)
         } else {
           if(((pD->Disp[2] + pD->Nx[2])/irefine != pM->Nx[2]) &&
                pM->BCFlag_ix3 == 4) {
-            ath_error("[bvals_init]:level=%d Domain touching ix3b but not ox3b and periodic BC not allowed\n",nl); 
+            ath_error("[bvals_init]:level=%d Domain touching ix3b but not ox3b and periodic BC not allowed\n",nl);
 
 /* Domain is at L-edge of root Domain */
           } else {
@@ -809,7 +795,7 @@ void bvals_mhd_init(MeshS *pM)
 /* Domain is at R-edge of root Domain, but not L-edge and periodic BC */
         } else {
           if((pD->Disp[2] != 0) && (pM->BCFlag_ox3 == 4)) {
-            ath_error("[bvals_init]:level=%d Domain touching ox3b but not ix3b and periodic BC not allowed\n",nl); 
+            ath_error("[bvals_init]:level=%d Domain touching ox3b but not ix3b and periodic BC not allowed\n",nl);
 
 /* Domain is at R-edge of root Domain */
           } else {
@@ -836,7 +822,6 @@ void bvals_mhd_init(MeshS *pM)
               pD->ox3_BCFun = conduct_ox3;
             break;
 
-
             default:
               ath_perr(-1,"[bvals_init]:bc_ox3=%d unknown\n",pM->BCFlag_ox3);
               exit(EXIT_FAILURE);
@@ -855,37 +840,37 @@ void bvals_mhd_init(MeshS *pM)
       for (l=0; l<(pD->NGrid[0]); l++){
 
 /* x1cnt is surface area of x1 faces */
-	if(pD->NGrid[0] > 1){
-	  nx2t = pD->GData[n][m][l].Nx[1];
-	  if(nx2t > 1) nx2t += 1;
+        if(pD->NGrid[0] > 1){
+          nx2t = pD->GData[n][m][l].Nx[1];
+          if(nx2t > 1) nx2t += 1;
 
-	  nx3t = pD->GData[n][m][l].Nx[2];
-	  if(nx3t > 1) nx3t += 1;
+          nx3t = pD->GData[n][m][l].Nx[2];
+          if(nx3t > 1) nx3t += 1;
 
           if(nx2t*nx3t > x1cnt) x1cnt = nx2t*nx3t;
-	}
+        }
 
 /* x2cnt is surface area of x2 faces */
-	if(pD->NGrid[1] > 1){
-	  nx1t = pD->GData[n][m][l].Nx[0];
-	  if(nx1t > 1) nx1t += 2*nghost;
+        if(pD->NGrid[1] > 1){
+          nx1t = pD->GData[n][m][l].Nx[0];
+          if(nx1t > 1) nx1t += 2*nghost;
 
-	  nx3t = pD->GData[n][m][l].Nx[2];
-	  if(nx3t > 1) nx3t += 1;
+          nx3t = pD->GData[n][m][l].Nx[2];
+          if(nx3t > 1) nx3t += 1;
 
           if(nx1t*nx3t > x2cnt) x2cnt = nx1t*nx3t;
-	}
+        }
 
 /* x3cnt is surface area of x3 faces */
-	if(pD->NGrid[2] > 1){
-	  nx1t = pD->GData[n][m][l].Nx[0];
-	  if(nx1t > 1) nx1t += 2*nghost;
+        if(pD->NGrid[2] > 1){
+          nx1t = pD->GData[n][m][l].Nx[0];
+          if(nx1t > 1) nx1t += 2*nghost;
 
-	  nx2t = pD->GData[n][m][l].Nx[1];
-	  if(nx2t > 1) nx2t += 2*nghost;
+          nx2t = pD->GData[n][m][l].Nx[1];
+          if(nx2t > 1) nx2t += 2*nghost;
 
           if(nx1t*nx2t > x3cnt) x3cnt = nx1t*nx2t;
-	}
+        }
       }
     }}
 #endif /* MPI_PARALLEL */
@@ -1962,117 +1947,6 @@ static void periodic_ox3(GridS *pGrid)
 }
 
 /*----------------------------------------------------------------------------*/
-// PERIODICOFFSET test
-static void periodicoffset_ix1(GridS *pGrid)
-{
-  int is = pGrid->is, ie = pGrid->ie;
-  int js = pGrid->js, je = pGrid->je;
-  int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-#endif
-
-  int noff = 2; // Important! # of cells offset
-  if(noff >= nghost) {
-    ath_error("Number of offset cells has to be smaller than number of ghost"
-              "cells (now %d vs %d)", noff, nghost);
-  }
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->U[k][j][is-i] = pGrid->U[k][j + noff][ie-(i-1)];
-      }
-    }
-  }
-
-#ifdef MHD
-  ath_error("MHD with periodic offset boundaries not yet initialized.");
-/* B1i is not set at i=is-nghost */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost-1; i++) {
-        pGrid->B1i[k][j][is-i] = pGrid->B1i[k][j][ie-(i-1)];
-      }
-    }
-  }
-
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B2i[k][j][is-i] = pGrid->B2i[k][j][ie-(i-1)];
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B3i[k][j][is-i] = pGrid->B3i[k][j][ie-(i-1)];
-      }
-    }
-  }
-#endif /* MHD */
-
-  return;
-}
-
-static void periodicoffset_ox1(GridS *pGrid)
-{
-  int is = pGrid->is, ie = pGrid->ie;
-  int js = pGrid->js, je = pGrid->je;
-  int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-#endif
-  int noff = 2;
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->U[k][j][ie+i] = pGrid->U[k][j - noff][is+(i-1)];
-      }
-    }
-  }
-
-#ifdef MHD
-/* B1i is not set at i=ie+1 */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=2; i<=nghost; i++) {
-        pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][is+(i-1)];
-      }
-    }
-  }
-
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][is+(i-1)];
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][is+(i-1)];
-      }
-    }
-  }
-#endif /* MHD */
-
-  return;
-}
-
-
-/*----------------------------------------------------------------------------*/
 /*! \fn static void conduct_ix1(GridS *pGrid)
  *  \brief CONDUCTOR boundary conditions, Inner x1 boundary (bc_ix1=5) */
 
@@ -2422,7 +2296,7 @@ static void conduct_ox3(GridS *pGrid)
 
 /*----------------------------------------------------------------------------*/
 /*! \fn static void ProlongateLater(GridS *pGrid)
- *  \brief PROLONGATION boundary conditions.  
+ *  \brief PROLONGATION boundary conditions.
  *
  *  Nothing is actually done here, the
  * prolongation is actually handled in ProlongateGhostZones in main loop, so

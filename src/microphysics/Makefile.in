@@ -10,8 +10,6 @@
 CORE_OBJ = conduction.o \
 	   cool.o \
 	   integrate_diffusion.o \
-	   integrate_cooling.o \
-	   cool_solver.o \
            get_eta.o \
 	   new_dt_diff.o \
            resistivity.o \

@@ -12,8 +12,7 @@ CORE_OBJ = esystem_prim.o\
 	   lr_states_plm.o \
 	   lr_states_ppm.o \
 	   lr_states_prim2.o \
-	   lr_states_prim3.o \
-	   lr_states_p3c.o
+	   lr_states_prim3.o
 
 OBJ = $(CORE_OBJ)
 

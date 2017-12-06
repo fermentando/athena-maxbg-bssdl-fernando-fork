@@ -2,7 +2,7 @@
 /*============================================================================*/
 /*! \file bvals_grav.c
  *  \brief Sets boundary conditions (quantities in ghost zones) for the
- *   gravitational potential on each edge of a Grid. 
+ *   gravitational potential on each edge of a Grid.
  *
  * PURPOSE: Sets boundary conditions (quantities in ghost zones) for the
  *   gravitational potential on each edge of a Grid.  See comments at
@@ -10,7 +10,7 @@
  * The only BC functions implemented here are for:
  *- 1 = reflecting, 4 = periodic, and MPI boundaries
  *
- * CONTAINS PUBLIC FUNCTIONS: 
+ * CONTAINS PUBLIC FUNCTIONS:
  * - bvals_grav()      - calls appropriate functions to set ghost cells
  * - bvals_grav_init() - sets function pointers used by bvals_grav()
  * - bvals_grav_fun()  - enrolls a pointer to a user-defined BC function */
@@ -55,13 +55,6 @@ static void periodic_Phi_ox2(GridS *pG);
 static void periodic_Phi_ix3(GridS *pG);
 static void periodic_Phi_ox3(GridS *pG);
 
-static void obc_fft_Phi_ix1(GridS *pG);
-static void obc_fft_Phi_ox1(GridS *pG);
-static void obc_fft_Phi_ix2(GridS *pG);
-static void obc_fft_Phi_ox2(GridS *pG);
-static void obc_fft_Phi_ix3(GridS *pG);
-static void obc_fft_Phi_ox3(GridS *pG);
-
 static void ProlongateLater(GridS *pG);
 
 #ifdef MPI_PARALLEL
@@ -83,7 +76,7 @@ static void unpack_Phi_ox3(GridS *pG);
 /*=========================== PUBLIC FUNCTIONS ===============================*/
 /*----------------------------------------------------------------------------*/
 /*! \fn void bvals_grav(DomainS *pD)
- *  \brief Calls appropriate functions to set ghost zones.  
+ *  \brief Calls appropriate functions to set ghost zones.
  *
  *   The function
  *   pointers (*_GBCFun) are set during initialization by bvals_grav_init() to
@@ -410,7 +403,7 @@ void bvals_grav(DomainS *pD)
 }
 
 /*----------------------------------------------------------------------------*/
-/*! \fn void bvals_grav_init(MeshS *pM) 
+/*! \fn void bvals_grav_init(MeshS *pM)
  *  \brief Sets function pointers for physical boundaries during
  *   initialization, allocates memory for send/receive buffers with MPI
  */
@@ -453,7 +446,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at L-edge of root Domain */
         } else {
-#ifndef SELF_GRAVITY_USING_FFT_OBC
           switch(pM->BCFlag_ix1){
 
           case 1: /* Reflecting */
@@ -469,7 +461,7 @@ void bvals_grav_init(MeshS *pM)
 #ifdef MPI_PARALLEL
             if(pG->lx1_Gid < 0 && pD->NGrid[0] > 1){
               pG->lx1_Gid = pD->GData[myN][myM][pD->NGrid[0]-1].ID_Comm_Domain;
-	    }
+            }
 #endif /* MPI_PARALLEL */
           break;
 
@@ -481,9 +473,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ix1 = %d unknown\n",
             pM->BCFlag_ix1);
           }
-#else /* SELF_GRAVITY_USING_FFT_OBC */
-        pD->ix1_GBCFun = obc_fft_Phi_ix1;
-#endif
         }
       }
 
@@ -497,7 +486,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at R-edge of root Domain */
         } else {
-#ifndef SELF_GRAVITY_USING_FFT_OBC
           switch(pM->BCFlag_ox1){
 
           case 1: /* Reflecting */
@@ -525,9 +513,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ox1 = %d unknown\n",
             pM->BCFlag_ox1);
           }
-#else /* SELF_GRAVITY_USING_FFT_OBC */
-          pD->ox1_GBCFun = obc_fft_Phi_ox1;
-#endif
         }
       }
     }
@@ -546,7 +531,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at L-edge of root Domain */
         } else {
-#ifndef SELF_GRAVITY_USING_FFT_OBC
           switch(pM->BCFlag_ix2){
 
           case 1: /* Reflecting */
@@ -574,9 +558,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ix2 = %d unknown\n",
             pM->BCFlag_ix2);
           }
-#else /* SELF_GRAVITY_USING_FFT_OBC */
-          pD->ix2_GBCFun = obc_fft_Phi_ix2;
-#endif
         }
       }
 
@@ -590,7 +571,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at R-edge of root Domain */
         } else {
-#ifndef SELF_GRAVITY_USING_FFT_OBC
           switch(pM->BCFlag_ox2){
 
           case 1: /* Reflecting */
@@ -618,9 +598,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ox2 = %d unknown\n",
             pM->BCFlag_ox2);
           }
-#else /* SELF_GRAVITY_USING_FFT_OBC */
-          pD->ox2_GBCFun = obc_fft_Phi_ox2;
-#endif
         }
       }
     }
@@ -639,9 +616,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at L-edge of root Domain */
         } else {
-#if defined(SELF_GRAVITY_USING_FFT_OBC) || defined(SELF_GRAVITY_USING_FFT_DISK)
-          pD->ix3_GBCFun = obc_fft_Phi_ix3;
-#else
           switch(pM->BCFlag_ix3){
 
           case 1: /* Reflecting */
@@ -669,7 +643,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ix3 = %d unknown\n",
             pM->BCFlag_ix3);
           }
-#endif /* SELF_GRAVITY_USING_FFT_OBC || SELF_GRAVITY_USING_FFT_DISK*/
         }
       }
 
@@ -683,9 +656,6 @@ void bvals_grav_init(MeshS *pM)
 
 /* Domain is at R-edge of root Domain */
         } else {
-#if defined(SELF_GRAVITY_USING_FFT_OBC) || defined(SELF_GRAVITY_USING_FFT_DISK)
-          pD->ox3_GBCFun = obc_fft_Phi_ox3;
-#else
           switch(pM->BCFlag_ox3){
 
           case 1: /* Reflecting */
@@ -713,7 +683,6 @@ void bvals_grav_init(MeshS *pM)
             ath_error("[bvals_grav_init]: BCFlag_ox3 = %d unknown\n",
             pM->BCFlag_ox3);
           }
-#endif /* SELF_GRAVITY_USING_FFT_OBC || SELF_GRAVITY_USING_FFT_DISK*/
         }
       }
     }
@@ -792,7 +761,7 @@ void bvals_grav_init(MeshS *pM)
 
 /*----------------------------------------------------------------------------*/
 /*! \fn void bvals_grav_fun(DomainS *pD, enum BCDirection dir, VGFun_t prob_bc)
- *  \brief Sets function pointers for user-defined BCs in problem 
+ *  \brief Sets function pointers for user-defined BCs in problem
  */
 
 void bvals_grav_fun(DomainS *pD, enum BCDirection dir, VGFun_t prob_bc)
@@ -1107,151 +1076,9 @@ static void periodic_Phi_ox3(GridS *pGrid)
   return;
 }
 
-
-/*----------------------------------------------------------------------------
- * OPEN BOUNDARY CONDITION FUNCTIONS
- *----------------------------------------------------------------------------*/
-
-/* For linear extrapolation, just comment out the following line */
-#define QUADRATIC_EXTRAPOLATION
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Inner x1 boundary
- *
- * This BC uses a linear (quadratic) extrapolation of Phi normal to each face.
- * NOTE:  This version requires AT LEAST 2(3) active zones in each direction! */
-static void obc_fft_Phi_ix1(GridS *pG)
-{
-  int i,is=pG->is;
-  int j,js=pG->js,je=pG->je;
-  int k,ks=pG->ks,ke=pG->ke;
-  
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[k][j][is-i] = 3.0*pG->Phi[k][j][is-i+1] - 3.0*pG->Phi[k][j][is-i+2] + pG->Phi[k][j][is-i+3];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[k][j][is-i] = 2.0*pG->Phi[k][j][is-i+1] - pG->Phi[k][j][is-i+2];
-#endif
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Outer x1 boundary
- */
-static void obc_fft_Phi_ox1(GridS *pG)
-{
-  int i,ie=pG->ie;
-  int j,js=pG->js,je=pG->je;
-  int k,ks=pG->ks,ke=pG->ke;
-  
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[k][j][ie+i] = 3.0*pG->Phi[k][j][ie+i-1] - 3.0*pG->Phi[k][j][ie+i-2] + pG->Phi[k][j][ie+i-3];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[k][j][ie+i] = 2.0*pG->Phi[k][j][ie+i-1] - pG->Phi[k][j][ie+i-2];
-#endif
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Innter x2 boundary
- */
-static void obc_fft_Phi_ix2(GridS *pG)
-{
-  int i,is=pG->is,ie=pG->ie;
-  int j,js=pG->js;
-  int k,ks=pG->ks,ke=pG->ke;
-  
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=is-nghost; i<=ie+nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[k][js-j][i] = 3.0*pG->Phi[k][js-j+1][i] - 3.0*pG->Phi[k][js-j+2][i] + pG->Phi[k][js-j+3][i];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[k][js-j][i] = 2.0*pG->Phi[k][js-j+1][i] - pG->Phi[k][js-j+2][i];
-#endif
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Outer x2 boundary
- */
-static void obc_fft_Phi_ox2(GridS *pG)
-{
-  int i,is=pG->is,ie=pG->ie;
-  int j,je=pG->je;
-  int k,ks=pG->ks,ke=pG->ke;
-  
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=is-nghost; i<=ie+nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[k][je+j][i] = 3.0*pG->Phi[k][je+j-1][i] - 3.0*pG->Phi[k][je+j-2][i] + pG->Phi[k][je+j-3][i];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[k][je+j][i] = 2.0*pG->Phi[k][je+j-1][i] - pG->Phi[k][je+j-2][i];
-#endif
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Inner x3 boundary
- */
-static void obc_fft_Phi_ix3(GridS *pG)
-{
-  int i,is=pG->is,ie=pG->ie;
-  int j,js=pG->js,je=pG->je;
-  int k,ks=pG->ks;
-  
-  for (k=1; k<=nghost; k++) {
-    for (j=js-nghost; j<=je+nghost; j++) {
-      for (i=is-nghost; i<=ie+nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[ks-k][j][i] = 3.0*pG->Phi[ks-k+1][j][i] - 3.0*pG->Phi[ks-k+2][j][i] + pG->Phi[ks-k+3][j][i];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[ks-k][j][i] = 2.0*pG->Phi[ks-k+1][j][i] - pG->Phi[ks-k+2][j][i];
-#endif
-      }
-    }
-  }
-}
-
-/*----------------------------------------------------------------------------*/
-/* OPEN (VACUUM) boundary conditions, Outer x3 boundary
- */
-static void obc_fft_Phi_ox3(GridS *pG)
-{
-  int i,is=pG->is,ie=pG->ie;
-  int j,js=pG->js,je=pG->je;
-  int k,ke=pG->ke;
-  
-  for (k=1; k<=nghost; k++) {
-    for (j=js-nghost; j<=je+nghost; j++) {
-      for (i=is-nghost; i<=ie+nghost; i++) {
-#ifdef QUADRATIC_EXTRAPOLATION
-        pG->Phi[ke+k][j][i] = 3.0*pG->Phi[ke+k-1][j][i] - 3.0*pG->Phi[ke+k-2][j][i] + pG->Phi[ke+k-3][j][i];
-#else  /* LINEAR EXTRAPOLATION */
-        pG->Phi[ke+k][j][i] = 2.0*pG->Phi[ke+k-1][j][i] - pG->Phi[ke+k-2][j][i];
-#endif
-      }
-    }
-  }
-}
-
 /*----------------------------------------------------------------------------*/
 /*! \fn static void ProlongateLater(GridS *pGrid)
- *  \brief PROLONGATION boundary conditions.  
+ *  \brief PROLONGATION boundary conditions.
  *
  * Nothing is actually done here, the
  * prolongation is actually handled in ProlongateGhostZones in main loop, so

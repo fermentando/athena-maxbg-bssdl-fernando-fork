@@ -56,14 +56,8 @@ foreach $id (@ids)
 		copy("$id/$pre-$id.$step.rst", "restart-$id.latest.rst");
 	}
 }
-if(-e "restart.latest.rst")
-{
-	print "Ready to go!\n";
-}
-else
-{
-	print "Auto collection failed.\nUsage:\n> perl autocollect.pl [probid]\n";
-}
+print "Ready to go!\n";
+
 
 exit;
 

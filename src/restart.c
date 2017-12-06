@@ -25,8 +25,8 @@
  * With SMR, restart files contain ALL levels and domains being updated by each
  * processor in one file, written in the default directory for the process.
  *
- * CONTAINS PUBLIC FUNCTIONS: 
- * - restart_grids() - reads nstep,time,dt,ConsS and B from restart file 
+ * CONTAINS PUBLIC FUNCTIONS:
+ * - restart_grids() - reads nstep,time,dt,ConsS and B from restart file
  * - dump_restart()  - writes a restart file
  *									      */
 /*============================================================================*/
@@ -44,7 +44,7 @@
 /*----------------------------------------------------------------------------*/
 /*! \fn void restart_grids(char *res_file, MeshS *pM)
  *  \brief Reads nstep, time, dt, and arrays of ConsS and interface B
- *   for each of the Grid structures in the restart file.  
+ *   for each of the Grid structures in the restart file.
  *
  *    By the time this
  *   function is called (in Step 6 of main()), the Mesh hierarchy has already
@@ -254,58 +254,16 @@ void restart_grids(char *res_file, MeshS *pM)
  * centered field if there is more than one cell in that dimension, or just
  * the face centered field if not  */
 
-      if(ib==1) {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-#if defined(CARTESIAN)
-          pG->U[k][j][i].B1c = 0.5*(pG->B1i[k][j][i] +pG->B1i[k][j][i+1]);
-#elif defined(CYLINDRICAL)
-          pG->U[k][j][i].B1c = 0.5*(pG->ri[i]*pG->B1i[k][j][i] + pG->ri[i+1]*pG->B1i[k][j][i+1])/pG->r[i];
-#elif defined(SPHERICAL)
-          pG->U[k][j][i].B1c = ((pG->px1i[i+1]-pG->px1v[i])*pG->B1i[k][j][i] + (pG->px1v[i]-pG->px1i[i])*pG->B1i[k][j][i+1])/pG->dx1;
-#endif
-        }}}
-      }
-      else {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
+      for (k=ks; k<=ke; k++) {
+      for (j=js; j<=je; j++) {
+      for (i=is; i<=ie; i++) {
         pG->U[k][j][i].B1c = pG->B1i[k][j][i];
-        }}}
-      }
-      if(jb==1) {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-#ifdef SPHERICAL
-          pG->U[k][j][i].B2c = ((pG->px2i[j+1]-pG->px2v[j])*pG->B2i[k][j][i] + (pG->px2v[j]-pG->px2i[j])*pG->B2i[k][j+1][i])/pG->dx2;
-#else
-          pG->U[k][j][i].B2c = 0.5*(pG->B2i[k][j][i] +pG->B2i[k][j+1][i]);
-#endif
-        }}}
-      }
-      else {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-          pG->U[k][j][i].B2c = pG->B2i[k][j][i];
-        }}}
-      }
-      if(kb==1) {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-          pG->U[k][j][i].B3c = 0.5*(pG->B3i[k][j][i] +pG->B3i[k+1][j][i]);
-        }}}
-      }
-      else {
-        for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-          pG->U[k][j][i].B3c = pG->B3i[k][j][i];
-        }}}
-      }
+        pG->U[k][j][i].B2c = pG->B2i[k][j][i];
+        pG->U[k][j][i].B3c = pG->B3i[k][j][i];
+        if(ib==1) pG->U[k][j][i].B1c=0.5*(pG->B1i[k][j][i] +pG->B1i[k][j][i+1]);
+        if(jb==1) pG->U[k][j][i].B2c=0.5*(pG->B2i[k][j][i] +pG->B2i[k][j+1][i]);
+        if(kb==1) pG->U[k][j][i].B3c=0.5*(pG->B3i[k][j][i] +pG->B3i[k+1][j][i]);
+      }}}
 #endif
 
 #if (NSCALARS > 0)
@@ -640,7 +598,7 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write the x3-momentum */
 
       fprintf(fp,"\n3-MOMENTUM\n");
@@ -659,7 +617,7 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 #ifndef BAROTROPIC
 /* Write energy density */
 
@@ -777,9 +735,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
       for (p=0; p<pG->nparticle; p++)
         if (pG->particle[p].pos == 1) np += 1;
       fwrite(&(np),sizeof(long),1,fp);
-    
+
 /* Write out the particle properties */
-    
+
 #ifdef FEEDBACK
       nprop = 5;
 #else
@@ -804,7 +762,7 @@ void dump_restart(MeshS *pM, OutputS *pout)
         nbuf = 0;
       }
       fwrite(&(alamcoeff),sizeof(Real),1,fp);  /* coef for Reynolds number */
-    
+
       for (i=0; i<npartypes; i++) {         /* particle integrator type */
         sbuf[nsbuf++] = grproperty[i].integrator;
         if ((nsbuf+1) > sbufsize) {
@@ -816,9 +774,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(sbuf,sizeof(short),nsbuf,fp);
         nsbuf = 0;
       }
-    
+
 /* Write x1 */
-    
+
       fprintf(fp,"\nPARTICLE X1\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -832,9 +790,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write x2 */
-    
+
       fprintf(fp,"\nPARTICLE X2\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -848,9 +806,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write x3 */
-    
+
       fprintf(fp,"\nPARTICLE X3\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -864,9 +822,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write v1 */
-    
+
       fprintf(fp,"\nPARTICLE V1\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -880,9 +838,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write v2 */
-    
+
       fprintf(fp,"\nPARTICLE V2\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -896,9 +854,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write v3 */
-    
+
       fprintf(fp,"\nPARTICLE V3\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -912,9 +870,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(buf,sizeof(Real),nbuf,fp);
         nbuf = 0;
       }
-    
+
 /* Write properties */
-    
+
       fprintf(fp,"\nPARTICLE PROPERTY\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -928,9 +886,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(ibuf,sizeof(int),nibuf,fp);
         nibuf = 0;
       }
-    
+
 /* Write my_id */
-    
+
       fprintf(fp,"\nPARTICLE MY_ID\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -944,10 +902,10 @@ void dump_restart(MeshS *pM, OutputS *pout)
         fwrite(lbuf,sizeof(long),nlbuf,fp);
         nlbuf = 0;
       }
-    
+
 #ifdef MPI_PARALLEL
 /* Write init_id */
-    
+
       fprintf(fp,"\nPARTICLE INIT_ID\n");
       for (p=0;p<pG->nparticle;p++)
       if (pG->particle[p].pos == 1){
@@ -966,9 +924,9 @@ void dump_restart(MeshS *pM, OutputS *pout)
 
     }
   }}  /*---------- End loop over all Domains ---------------------------------*/
-    
+
 /* call a user function to write his/her problem-specific data! */
-    
+
   fprintf(fp,"\nUSER_DATA\n");
   problem_write_restart(pM, fp);
 
