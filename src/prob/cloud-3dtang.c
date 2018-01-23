@@ -225,6 +225,8 @@ void problem(DomainS *pDomain)
   d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
+  dp = par_getd_def("problem", "dp", 0.0);
+
 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
@@ -302,7 +304,8 @@ void problem(DomainS *pDomain)
         r = sqrt(x1*x1+x2*x2+x3*x3);
 
         rho  = 1.0;
-        dp   = 0.0;
+        // Fix pressure so that temperature is normed to what it was with drat=1e3
+        // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
         vx   = vflow;
 
 #if (NSCALARS > 0)
@@ -312,7 +315,6 @@ void problem(DomainS *pDomain)
         if (r < r_cloud) {
           vx   = -(x2/r_cloud) * v_rot;
           vy   =  (x1/r_cloud) * v_rot;
-          dp   = 0.0;
 
           rho  *= drat;
 
@@ -345,7 +347,7 @@ void problem(DomainS *pDomain)
         }
         */
 
-        // Defining the pressure implicitly through the "+ 1.0"
+        // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
         pGrid->U[k][j][i].E = 1.0 + 0.5 * rho * SQR(vx);
         pGrid->U[k][j][i].E += dp / Gamma_1;
