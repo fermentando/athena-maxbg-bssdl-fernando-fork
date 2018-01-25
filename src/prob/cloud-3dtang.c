@@ -1976,7 +1976,7 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is-i].M2 = 0.0;
         pGrid->U[k][j][is-i].M3 = 0.0;
         pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(vflow);
-        pGrid->U[k][j][i].E += dp / Gamma_1;
+        pGrid->U[k][j][is-i].E += dp / Gamma_1;
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;
         pGrid->U[k][j][is-i].B2c = sqrt(2.0 * Gamma_1 / betaout);;
