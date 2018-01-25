@@ -152,7 +152,7 @@ static Real hst_xshift(GridS *pG, int i, int j, int k);
 static Real hst_vflow(GridS *pG, int i, int j, int k);
 #endif
 
-static Real drat, vflow, vflow0, betain, betaout,dr,bz;
+static Real drat, vflow, vflow0, betain, betaout,dr,bz,dp;
 
 static Real tfloor, tceil, rhofloor, betafloor; /* Used in nancheck*/
 
@@ -176,7 +176,7 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
-  Real rho, vx, vy, dp,  v_turb, v_rot, r_cloud;
+  Real rho, vx, vy, v_turb, v_rot, r_cloud;
   Real fact;
 
   int iseed;
