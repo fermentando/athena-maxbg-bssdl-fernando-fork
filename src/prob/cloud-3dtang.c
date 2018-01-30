@@ -1358,7 +1358,8 @@ static void integrate_cooling(GridS *pG)
 
   PrimS W;
   ConsS U;
-  Real temp, tcloud = Gamma_1 / drat;
+  // Changed this!!
+  Real temp, tcloud = Gamma_1 / 1000.0;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
@@ -1976,6 +1977,7 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is-i].M2 = 0.0;
         pGrid->U[k][j][is-i].M3 = 0.0;
         pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(vflow);
+        // Added by Max
         pGrid->U[k][j][is-i].E += dp / Gamma_1;
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;
