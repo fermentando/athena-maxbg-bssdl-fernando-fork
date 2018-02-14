@@ -666,6 +666,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
+  dp = par_getd_def("problem", "dp", 0.0);
+
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
   NuFun_i = NULL;
@@ -1358,7 +1360,7 @@ static void integrate_cooling(GridS *pG)
 
   PrimS W;
   ConsS U;
-  // Changed this!!
+  // Changed this for tfloor!!
   Real temp, tcloud = Gamma_1 / 1000.0;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
