@@ -218,6 +218,7 @@ void problem(DomainS *pDomain)
   Real rhofloor  = 1.0e-2;
   Real betafloor = 3.0e-3;
   */
+  // note that there's another tfloor in the cooling function 
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
@@ -1361,7 +1362,7 @@ static void integrate_cooling(GridS *pG)
   PrimS W;
   ConsS U;
   // Changed this for tfloor!!
-  Real temp, tcloud = Gamma_1 / 1000.0;
+  Real temp, tcloud = (Gamma_1 + dp) / drat;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
@@ -1980,7 +1981,10 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is-i].M3 = 0.0;
         pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(vflow);
         // Added by Max
+#ifndef ISOTHERMAL
         pGrid->U[k][j][is-i].E += dp / Gamma_1;
+#endif
+
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;
         pGrid->U[k][j][is-i].B2c = sqrt(2.0 * Gamma_1 / betaout);;
