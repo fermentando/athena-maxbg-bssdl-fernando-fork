@@ -1130,7 +1130,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
         /* TODO: what about B??? */
         if(fix) {
           pGrid->U[k][j][i].d  = rho;
-                  KE = (SQR(pGrid->U[k][j][i].M1) +
+          KE = (SQR(pGrid->U[k][j][i].M1) +
                 SQR(pGrid->U[k][j][i].M2) +
                 SQR(pGrid->U[k][j][i].M3)) /
             (2.0 * rho);
