@@ -127,7 +127,7 @@ static Real hst_vflow(GridS *pG, int i, int j, int k);
 
 static Real drat, vflow, vflow0, betain, betaout,dr,bz,dp,tnotcool;
 
-static Real tfloor, tceil, rhofloor, betafloor; /* Used in nancheck*/
+static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 
 #ifdef VISCOSITY
 static Real nu_fun(const Real d, const Real T,
@@ -201,7 +201,7 @@ void problem(DomainS *pDomain)
 
   dp = par_getd_def("problem", "dp", 0.0);
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
-
+  tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
@@ -643,6 +643,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
   dp = par_getd_def("problem", "dp", 0.0);
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
+  tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
@@ -1228,6 +1229,9 @@ static void init_cooling()
   for (k=0; k<=n; k++)
     sdT[k] /= (8.197 * mu);
 
+  if(tfloor_cooling < sdT[0])
+    ath_error("Cooling floor is smaller than first entry of cooling function.");
+
   /* populate Yk following equation A6 in Townsend (2009) */
   Yk[n] = 0.0;
   for (k=n-1; k>=0; k--){
@@ -1241,7 +1245,7 @@ static void init_cooling()
     Yk[k] = Yk[k+1] - term;
 
     if(isnan(Yk[k]))
-      ath_error("Error initializing cooling.");
+      ath_error("Error initializing cooling. nan in Yk[%d]", k);
   }
 
   return;
@@ -1343,7 +1347,7 @@ static void integrate_cooling(GridS *pG)
   PrimS W;
   ConsS U;
   // Changed this for tfloor!!
-  Real temp, tcloud = (Gamma_1 + dp) / drat;
+  Real temp;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
@@ -1367,8 +1371,8 @@ static void integrate_cooling(GridS *pG)
         temp = newtemp_townsend(W.d, temp, pG->dt);
 
         /* apply a temperature floor (nans tolerated) */
-        if (isnan(temp) || temp < tcloud)
-          temp = tcloud;
+        if (isnan(temp) || temp < tfloor_cooling)
+          temp = tfloor_cooling;
 
         W.P = W.d * temp;
         U = Prim_to_Cons(&W);
