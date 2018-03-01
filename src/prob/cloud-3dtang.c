@@ -88,36 +88,9 @@ static int nan_dump_count;
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
-#define nfit_cool 7
 
-static Real sdT[nfit_cool] = {
-  1.0e-5,
-  0.0017235,
-  0.02,
-  0.13,
-  0.7,
-  5.0,
-  100.0};
-
-static const Real sdL[nfit_cool] = {
-  5.890872e-13,
-  15.438249,
-  66.831473,
-  2.773501,
-  1.195229,
-  1.842056,
-  6.10541
-};
-
-static const Real sdexpt[nfit_cool] = {
-  6.0,
-  0.6,
-  -1.7,
-  -0.5,
-  0.22,
-  0.4,
-  0.4
-};
+//#include "prob/cooling_data/SD93_Z1.h"
+#include "prob/cooling_data/WSS09_n1_Z1.h"
 
 static Real Yk[nfit_cool];
 /* -- end piecewise power-law fit */
@@ -1266,6 +1239,9 @@ static void init_cooling()
       term *= ((1.0 - pow(sdT[k]/sdT[k+1], sdexpt[k]-1.0)) / (1.0-sdexpt[k]));
 
     Yk[k] = Yk[k+1] - term;
+
+    if(isnan(Yk[k]))
+      ath_error("Error initializing cooling.");
   }
 
   return;
@@ -1384,9 +1360,9 @@ static void integrate_cooling(GridS *pG)
         /* find temp in keV */
         temp = W.P/W.d;
 
-	/* do not cool above a certain threshold */
-	if( (tnotcool > 0) && (temp > tnotcool) ) 
-	  continue;
+        /* do not cool above a certain threshold */
+        if( (tnotcool > 0) && (temp > tnotcool) ) 
+          continue;
 
         temp = newtemp_townsend(W.d, temp, pG->dt);
 
