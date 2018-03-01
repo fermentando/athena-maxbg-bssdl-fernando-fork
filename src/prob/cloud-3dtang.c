@@ -152,7 +152,7 @@ static Real hst_xshift(GridS *pG, int i, int j, int k);
 static Real hst_vflow(GridS *pG, int i, int j, int k);
 #endif
 
-static Real drat, vflow, vflow0, betain, betaout,dr,bz,dp;
+static Real drat, vflow, vflow0, betain, betaout,dr,bz,dp,tnotcool;
 
 static Real tfloor, tceil, rhofloor, betafloor; /* Used in nancheck*/
 
@@ -227,6 +227,7 @@ void problem(DomainS *pDomain)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0);
 
 
 #ifdef VISCOSITY
@@ -668,6 +669,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0);
 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
@@ -1226,6 +1228,9 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     if(nnan) nan_dump_count++;
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
+
+    if (nfloor > 1000)
+      ath_error("[report_nans]: Too many floored cells.\n");
   }
 
 
@@ -1378,6 +1383,11 @@ static void integrate_cooling(GridS *pG)
 
         /* find temp in keV */
         temp = W.P/W.d;
+
+	/* do not cool above a certain threshold */
+	if( (tnotcool > 0) && (temp > tnotcool) ) 
+	  continue;
+
         temp = newtemp_townsend(W.d, temp, pG->dt);
 
         /* apply a temperature floor (nans tolerated) */
