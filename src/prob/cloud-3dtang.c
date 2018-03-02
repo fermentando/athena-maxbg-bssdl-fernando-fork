@@ -1203,9 +1203,11 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
 
-    if (nfloor > 1000)
+    }
+
+    if (nfloor > 10000)
       ath_error("[report_nans]: Too many floored cells.\n");
-  }
+
 
 
 #endif  /* ISOTHERMAL */
