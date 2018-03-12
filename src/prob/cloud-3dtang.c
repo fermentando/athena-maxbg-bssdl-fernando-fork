@@ -2564,7 +2564,15 @@ void init_particles(GridS *pGrid, Real r_cloud) {
   int i, j;
   Real pos[3];
 
+  pGrid->nparticle = (int)(par_geti("particle","parnumgrid"));
+
+  ath_pout(0, "[init_particles] Initialize %d particles.\n", pGrid->nparticle);
+
+  if (pGrid->nparticle+2 > pGrid->arrsize)
+    particle_realloc(pGrid, pGrid->nparticle+2);
+
   for(i=0;i<pGrid->nparticle;i++) {
+    pGrid->particle[i].my_id = i;
     for(j = 0; j < 3; j++) 
       pos[j] = randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
 
