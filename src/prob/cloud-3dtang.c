@@ -90,7 +90,8 @@ static int nan_dump_count;
    Townsend (2009) exact integration scheme */
 
 //#include "prob/cooling_data/SD93_Z1.h"
-#include "prob/cooling_data/WSS09_n1_Z1.h"
+//#include "prob/cooling_data/WSS09_n1_Z1.h"
+#include "prob/cooling_data/WSS09_CIE_Z1.h"
 
 static Real Yk[nfit_cool];
 /* -- end piecewise power-law fit */
@@ -569,9 +570,9 @@ void problem(DomainS *pDomain)
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
         fact = -1.0;
-        while (abs(fact) > 0.03)
+        while (fabs(fact) > 0.03)
           fact = (RandomNormal(0.0, 0.01));
-        if(abs(fact) < .03)
+        if(fabs(fact) < .03)
           pGrid->U[k][j][i].d *= (1.0+fact);
       }
     }
@@ -859,7 +860,7 @@ void Userwork_in_loop(MeshS *pM)
 
 #ifdef FOLLOW_CLOUD
   dvx = cloud_mass_weighted_velocity(pM);
-  if(abs(dvx) > .01 || dvx < 0.0){
+  if(fabs(dvx) > .01 || dvx < 0.0){
     ath_pout(0,"[bad dvx:] %0.20e setting to 0.\n",dvx);
     dvx = 0.0;
   }
@@ -1038,7 +1039,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
 #ifdef MHD
         beta = press / ME;
 #else
-        beta = abs(200.*betafloor);
+        beta = fabs(200.*betafloor);
 #endif  /* MHD */
 
         if (press != press) {
@@ -1203,7 +1204,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
 
-    if (nfloor > 1000)
+    if (nfloor > 50000)
       ath_error("[report_nans]: Too many floored cells.\n");
   }
 
