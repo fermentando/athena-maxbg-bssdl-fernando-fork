@@ -78,6 +78,7 @@ static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
 
 #ifdef PARTICLES
+void init_particles(GridS *pGrid, Real r_cloud);
 void move_particles_boundary(MeshS *pM);
 #endif
 
@@ -580,6 +581,10 @@ void problem(DomainS *pDomain)
       }
     }
    }
+
+#ifdef PARTICLES
+   init_particles(pGrid, r_cloud);
+#endif
 
   return;
 }
@@ -2552,6 +2557,29 @@ void Userforce_particle(Real3Vect *ft, const Real x1, const Real x2,
                         const Real x3, const Real v1, const Real v2, const Real v3)
 {
   return;
+}
+
+/* Initialize particles */
+void init_particles(GridS *pGrid, Real r_cloud) {
+  int i, j;
+  Real pos[3];
+
+  for(i=0;i<pGrid->nparticle;i++) {
+    for(j = 0; j < 3; j++) 
+      pos[j] = randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
+
+    pGrid->particle[i].x1 = pos[0];
+    pGrid->particle[i].x2 = pos[1];
+    pGrid->particle[i].x3 = pos[2];
+
+    if(SQR(pos[0]) + SQR(pos[1]) + SQR(pos[2]) < r_cloud * r_cloud)
+      pGrid->particle[i].v1 = 0.0;
+    else
+      pGrid->particle[i].v1 = vflow;
+
+    pGrid->particle[i].v2 = 0.0;
+    pGrid->particle[i].v3 = 0.0;
+  }
 }
 
 /* Mode particles which moved outside the grid on the bottom of the box upward again */
