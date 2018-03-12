@@ -77,6 +77,9 @@ static Real hst_cBz(const GridS *pG, const int i, const int j, const int k);
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
 
+#ifdef PARTICLES
+void move_particles_boundary(MeshS *pM);
+#endif
 
 
 #ifdef REPORT_NANS
@@ -922,6 +925,11 @@ void Userwork_in_loop(MeshS *pM)
     ath_error("dt too small\n");
 
   }
+
+#ifdef PARTICLES
+  move_particles_boundary(pM);
+#endif
+
   return;
 }
 
@@ -2523,3 +2531,47 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
 
 
 #endif  /* NSCALARS */
+
+
+/*
+Below follow the functions if one introduces particles
+ */
+#ifdef PARTICLES
+PropFun_t get_usr_par_prop(const char *name)
+{
+  return NULL;
+}
+
+void gasvshift(const Real x1, const Real x2, const Real x3,
+               Real *u1, Real *u2, Real *u3)
+{
+  return;
+}
+
+void Userforce_particle(Real3Vect *ft, const Real x1, const Real x2,
+                        const Real x3, const Real v1, const Real v2, const Real v3)
+{
+  return;
+}
+
+/* Mode particles which moved outside the grid on the bottom of the box upward again */
+void move_particles_boundary(MeshS *pM) {
+  GridS *pGrid = pM->Domain[0][0].Grid;
+  GrainS *p;
+  int i;
+
+  for(i=0;i<pGrid->nparticle;i++) {
+    p = &(pGrid->particle[i]);
+    if(p->x1 > pGrid->MaxX[0]) {
+      p->x1 = pGrid->MinX[0];
+      p->v1 = vflow;
+      p->v2 = 0;
+      p->v3 = 0;
+      // Two other coordinates randomly
+      p->x2 = randomreal2(pGrid->MinX[1], pGrid->MaxX[1]);
+      p->x3 = randomreal2(pGrid->MinX[2], pGrid->MaxX[2]);
+    }
+  }
+}
+
+#endif /* PARTICLES */
