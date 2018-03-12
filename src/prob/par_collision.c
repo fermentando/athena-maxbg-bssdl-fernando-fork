@@ -342,10 +342,17 @@ void Userwork_in_loop(MeshS *pM)
  * Must set parameters in input file appropriately so that this is true
  */
 
+void Userwork_before_loop(MeshS *pM)
+{
+  return;
+}
+
+
 void Userwork_after_loop(MeshS *pM)
 {
   return;
 }
+
 
 
 /*=========================== PRIVATE FUNCTIONS ==============================*/
