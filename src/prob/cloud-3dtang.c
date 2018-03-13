@@ -18,6 +18,10 @@
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
 
+#ifdef PARTICLES
+#include "particles/particle.h"
+#endif
+
 #define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
@@ -2564,21 +2568,31 @@ void init_particles(GridS *pGrid, Real r_cloud) {
   int i, j;
   Real pos[3];
 
-  pGrid->nparticle = (int)(par_geti("particle","parnumgrid"));
+  pGrid->nparticle = (int)(par_geti("particle","parnumproc"));
 
-  ath_pout(0, "[init_particles] Initialize %d particles.\n", pGrid->nparticle);
+  ath_pout(-1, "[init_particles] Initialize %d particles on processor %d.\n",
+           pGrid->nparticle, myID_Comm_world);
+
+  tstop0[0] = 0.0;
 
   if (pGrid->nparticle+2 > pGrid->arrsize)
     particle_realloc(pGrid, pGrid->nparticle+2);
 
   for(i=0;i<pGrid->nparticle;i++) {
-    pGrid->particle[i].my_id = i;
+    pGrid->particle[i].my_id = i + myID_Comm_world * pGrid->nparticle;
+
+#ifdef MPI_PARALLEL
+    pGrid->particle[i].init_id = myID_Comm_world;
+#endif
+
     for(j = 0; j < 3; j++) 
       pos[j] = randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
 
     pGrid->particle[i].x1 = pos[0];
     pGrid->particle[i].x2 = pos[1];
     pGrid->particle[i].x3 = pos[2];
+
+    pGrid->particle[i].pos = 1; /*!< position: 0: ghost; 1: grid; >=10: cross out/in; */
 
     if(SQR(pos[0]) + SQR(pos[1]) + SQR(pos[2]) < r_cloud * r_cloud)
       pGrid->particle[i].v1 = 0.0;
@@ -2595,17 +2609,21 @@ void move_particles_boundary(MeshS *pM) {
   GridS *pGrid = pM->Domain[0][0].Grid;
   GrainS *p;
   int i;
+  Real minX = pM->RootMinX[0];
+  Real maxX = pM->RootMaxX[0];
 
   for(i=0;i<pGrid->nparticle;i++) {
     p = &(pGrid->particle[i]);
-    if(p->x1 > pGrid->MaxX[0]) {
-      p->x1 = pGrid->MinX[0];
+    if(p->x1 > maxX) {
+      p->x1 = minX;
       p->v1 = vflow;
       p->v2 = 0;
       p->v3 = 0;
       // Two other coordinates randomly
-      p->x2 = randomreal2(pGrid->MinX[1], pGrid->MaxX[1]);
-      p->x3 = randomreal2(pGrid->MinX[2], pGrid->MaxX[2]);
+      p->x2 = randomreal2(pM->RootMinX[1], pM->RootMaxX[1]);
+      p->x3 = randomreal2(pM->RootMinX[2], pM->RootMaxX[2]);
+
+      //printf("Moved particle to %.2f %.2f\n", p->x2, p->x3);
     }
   }
 }
