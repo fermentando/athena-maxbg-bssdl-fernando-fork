@@ -82,8 +82,10 @@ static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
 
 #ifdef PARTICLES
+static int parnumproc;
+
 void init_particles(DomainS *pDomain);
-void move_particles_boundary(MeshS *pM);
+void add_new_particles(MeshS *pM);
 #endif
 
 
@@ -936,7 +938,7 @@ void Userwork_in_loop(MeshS *pM)
   }
 
 #ifdef PARTICLES
-  move_particles_boundary(pM);
+  add_new_particles(pM);
 #endif
 
   return;
@@ -2564,107 +2566,101 @@ void Userforce_particle(Real3Vect *ft, const Real x1, const Real x2,
 }
 
 
-/* Initialize particles */
+void place_particle(GrainS *p, Real pos[]) {
+  p->x1 = pos[0];
+  p->x2 = pos[1];
+  p->x3 = pos[2];
+
+  p->pos = 1; /*!< position: 0: ghost; 1: grid; >=10: cross out/in; */
+
+  if(SQR(p->x1) + SQR(p->x2) + SQR(p->x3) < r_cloud * r_cloud)
+    p->v1 = 0.0;
+  else
+    p->v1 = vflow;
+  p->v2 = 0.0;
+  p->v3 = 0.0;
+
+#ifdef MPI_PARALLEL
+  p->init_id = myID_Comm_world;
+#endif
+
+}
+
+/* Initialize particles
+
+Place `npart` particles which are `parnumproc` for each processor except
+proc 0 where it is `parnumproc` + `npart_cloud`
+ */
 void init_particles(DomainS *pDomain) {
   GridS *pGrid = pDomain->Grid;
   int i, j;
   GrainS *p;
-  int npart = (int)(par_geti("particle","parnumproc")); // TODO: make this global
+  int npart_cloud = (int)(par_geti("particle","parnumcloud"));
   Real pos[3];
+  int npart;
+  parnumproc = (int)(par_geti("particle","parnumproc"));
 
+  npart = parnumproc;
+  if(myID_Comm_world == 0)
+    npart += npart_cloud;
+
+  if (+2 > pGrid->arrsize)
+    particle_realloc(pGrid, parnumproc + npart_cloud + 2);
   tstop0[0] = 0.0;
-  pGrid->nparticle = npart;
-
-  if (npart+2 > pGrid->arrsize)
-    particle_realloc(pGrid, npart * 4+2);
 
   for(i=0;i<npart;i++) {
     for(j = 0; j < 3; j++) {
-      // pos[j] =  randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
-      pos[j] =  randomreal2(0, r_cloud);
+      if((myID_Comm_world == 0) && (i > parnumproc))
+        pos[j] =  randomreal2(0, r_cloud * 1.1); // put inside or close to cloud
+      else
+        pos[j] =  randomreal2(pGrid->MinX[j], pGrid->MaxX[j]); // uniformly on grid
     }
 
     p = &(pGrid->particle[i]);
-    p->my_id = i + myID_Comm_world * npart;
-
-#ifdef MPI_PARALLEL
-    p->init_id = myID_Comm_world;
-#endif
-
-    p->x1 = pos[0];
-    p->x2 = pos[1];
-    p->x3 = pos[2];
-
-    p->pos = 1; /*!< position: 0: ghost; 1: grid; >=10: cross out/in; */
-
-    if(SQR(p->x1) + SQR(p->x2) + SQR(p->x3) < r_cloud * r_cloud)
-      p->v1 = 0.0;
+    if((myID_Comm_world == 0) && (i > parnumproc)) // cloud
+      p->my_id = -i  -1;
     else
-      p->v1 = vflow;
-    p->v2 = 0.0;
-    p->v3 = 0.0;
+      p->my_id = i + myID_Comm_world * parnumproc;
 
-
+    place_particle(p, pos);
   }
 
   pGrid->nparticle = npart;
   ath_pout(-1, "[init_particles] Initialized %d particles on processor %d (%g to %g).\n",
            pGrid->nparticle, myID_Comm_world, pGrid->MinX[0], pGrid->MaxX[0]);
-
-
 }
 
 
-/* Mode particles which moved outside the grid on the bottom of the box upward again */
-void move_particles_boundary(MeshS *pM) { // TODO: rename!
-  GridS *pGrid = pM->Domain[0][0].Grid;
-  GrainS *p;
-  int i,j;
-  Real minPartX = pGrid->MaxX[0];
-  Real dx_part = 0.1;
-  Real minX = pM->RootMinX[0];
-  Real maxX = pM->RootMaxX[0];
-  static long int cur_pid = 0;
-  int id_offset = 1000 * (myID_Comm_world + 10); // TODO: FIXME --> old PID (proc dependend?!)
 
-  int npart = 128; // TODO: global?
+/* Place new particles upstream */
+void add_new_particles(MeshS *pM) {
+  GridS *pGrid = pM->Domain[0][0].Grid;
+  int i,j;
+  GrainS *p;
+  Real minX = pM->RootMinX[0];
+  static long int cur_pid = 0;
+  int id_offset = parnumproc * (myID_Comm_world + 4096) + 10000; // TODO: FIXME better
+  Real pos[3];
 
   if(minX != pGrid->MinX[0])
-    return; // don't feed new particles
-
+    return; // don't feed new particles if not on upstream boundary
 
   // Put some new particles in grid
-  for(i=pGrid->nparticle; i<npart;i++) {
+  for(i=pGrid->nparticle; i<parnumproc;i++) {
+    pos[0] = minX;
+    for(j = 1; j < 3; j++)
+      pos[j] = randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
     p = &(pGrid->particle[i]);
+    place_particle(p, pos);
 
     pGrid->nparticle++;
-    p = &(pGrid->particle[i]);
-    p->x1 = minX;
-    p->v1 = vflow;
-    p->v2 = 0;
-    p->v3 = 0;
     p->my_id = id_offset + cur_pid; 
     cur_pid++;
-    p->init_id = myID_Comm_world;
-    p->pos = 1;
 
-    p->x2 =  randomreal2(pGrid->MinX[1], pGrid->MaxX[1]);
-    p->x3 =  randomreal2(pGrid->MinX[2], pGrid->MaxX[2]);
-
-    printf("Added new particle %ld to %.2f %.2f on processor %d\n",
-           p->my_id, p->x2, p->x3, myID_Comm_world);
-
+    ath_pout(-1, "Added new particle %ld to %.2f %.2f on processor %d\n",
+             p->my_id, p->x2, p->x3, myID_Comm_world);
   }
 
-  // Two other coordinates randomly
-  /*
-  do {
-    p->x2 = RandomNormal2(0.0, r_cloud);
-  } while( (p->x2 > pM->RootMaxX[1]) || (p->x2 < pM->RootMinX[1]));
-  do {
-    p->x3 = RandomNormal2(0.0, r_cloud);
-  } while( (p->x2 > pM->RootMaxX[2]) || (p->x2 < pM->RootMinX[2]));
-  */
 }
 
 #endif /* PARTICLES */
