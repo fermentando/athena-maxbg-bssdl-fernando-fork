@@ -2596,6 +2596,8 @@ void init_particles(DomainS *pDomain) {
   int i, j;
   GrainS *p;
   int npart_cloud = (int)(par_geti("particle","parnumcloud"));
+  // Define how close to the cloud the `parnumcloud` particles should be
+  Real part_drcloud = par_getd_def("particle", "part_drcloud", 1.1);
   Real pos[3];
   int npart;
   parnumproc = (int)(par_geti("particle","parnumproc"));
@@ -2610,15 +2612,16 @@ void init_particles(DomainS *pDomain) {
 
   for(i=0;i<npart;i++) {
     for(j = 0; j < 3; j++) {
-      if((myID_Comm_world == 0) && (i > parnumproc))
-        pos[j] =  randomreal2(0, r_cloud * 1.1); // put inside or close to cloud
+      if((myID_Comm_world == 0) && (i >= parnumproc))
+        // put inside or close to cloud
+        pos[j] =  randomreal2(-r_cloud * part_drcloud, r_cloud * part_drcloud); 
       else
         pos[j] =  randomreal2(pGrid->MinX[j], pGrid->MaxX[j]); // uniformly on grid
     }
 
     p = &(pGrid->particle[i]);
-    if((myID_Comm_world == 0) && (i > parnumproc)) // cloud
-      p->my_id = -i  -1;
+    if((myID_Comm_world == 0) && (i >= parnumproc)) // cloud
+      p->my_id = 1000000 + i - parnumproc + 1;
     else
       p->my_id = i + myID_Comm_world * parnumproc;
 
@@ -2657,7 +2660,7 @@ void add_new_particles(MeshS *pM) {
     p->my_id = id_offset + cur_pid; 
     cur_pid++;
 
-    ath_pout(-1, "Added new particle %ld to %.2f %.2f on processor %d\n",
+    ath_pout(-1, "[add_new_particle] Added particle %ld (%.2g, %.2g) on processor %d\n",
              p->my_id, p->x2, p->x3, myID_Comm_world);
   }
 

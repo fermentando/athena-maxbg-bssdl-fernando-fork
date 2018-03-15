@@ -162,7 +162,7 @@ void Integrate_Particles(DomainS *pD)
   } /* end of the for loop */
 
   /* output the status */
-  ath_pout(-1, "In processor %d, there are %ld particles.\n",
+  ath_pout(0, "In processor %d, there are %ld particles.\n",
            myID_Comm_world, pG->nparticle);
 
   return;
