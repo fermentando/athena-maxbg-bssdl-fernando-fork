@@ -666,6 +666,11 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   NuFun_a = nu_fun;
 #endif
 
+#ifdef PARTICLES
+  parnumproc = (int)(par_geti("particle","parnumproc"));
+#endif
+
+
 #ifdef ENERGY_COOLING
   init_cooling();
 #endif
