@@ -2593,7 +2593,8 @@ proc 0 where it is `parnumproc` + `npart_cloud`
  */
 void init_particles(DomainS *pDomain) {
   GridS *pGrid = pDomain->Grid;
-  int i, j;
+  int i, j, fail;
+  int n = 0;
   GrainS *p;
   int npart_cloud = (int)(par_geti("particle","parnumcloud"));
   // Define how close to the cloud the `parnumcloud` particles should be
@@ -2602,33 +2603,38 @@ void init_particles(DomainS *pDomain) {
   int npart;
   parnumproc = (int)(par_geti("particle","parnumproc"));
 
-  npart = parnumproc;
-  if(myID_Comm_world == 0)
-    npart += npart_cloud;
+  npart = parnumproc + npart_cloud;
 
-  if (+2 > pGrid->arrsize)
-    particle_realloc(pGrid, parnumproc + npart_cloud + 2);
+  if (npart +2 > pGrid->arrsize)
+    particle_realloc(pGrid, npart + 2);
   tstop0[0] = 0.0;
 
   for(i=0;i<npart;i++) {
+    fail = 0;
     for(j = 0; j < 3; j++) {
-      if((myID_Comm_world == 0) && (i >= parnumproc))
+      if(i >= parnumproc)
         // put inside or close to cloud
         pos[j] =  randomreal2(-r_cloud * part_drcloud, r_cloud * part_drcloud); 
       else
         pos[j] =  randomreal2(pGrid->MinX[j], pGrid->MaxX[j]); // uniformly on grid
-    }
 
-    p = &(pGrid->particle[i]);
-    if((myID_Comm_world == 0) && (i >= parnumproc)) // cloud
-      p->my_id = 1000000 + i - parnumproc + 1;
+      if((pos[j] > pGrid->MaxX[j]) || (pos[j] < pGrid->MinX[j]))
+        fail = 1;
+    }
+    if(fail)
+      continue;
+
+    p = &(pGrid->particle[n]);
+    if(i >= parnumproc) // cloud
+      p->my_id = 1000000 + n - parnumproc + 1 + npart_cloud * myID_Comm_world;
     else
-      p->my_id = i + myID_Comm_world * parnumproc;
+      p->my_id = n + myID_Comm_world * parnumproc;
 
     place_particle(p, pos);
+    n += 1;
   }
 
-  pGrid->nparticle = npart;
+  pGrid->nparticle = n;
   ath_pout(-1, "[init_particles] Initialized %d particles on processor %d (%g to %g).\n",
            pGrid->nparticle, myID_Comm_world, pGrid->MinX[0], pGrid->MaxX[0]);
 }
