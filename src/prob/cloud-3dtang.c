@@ -99,7 +99,8 @@ static int nan_dump_count;
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 
-#include "prob/cooling_data/SD93_Z1.h"
+//#include "prob/cooling_data/SD93_Z1.h"
+#include "prob/cooling_data/SD93_Z1_S10.h"
 //#include "prob/cooling_data/WSS09_n1_Z1.h"
 //#include "prob/cooling_data/WSS09_CIE_Z1.h"
 
