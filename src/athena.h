@@ -102,6 +102,11 @@ typedef struct Cons_s{
 #ifdef CYLINDRICAL
   Real Pflux;	 		/*!< pressure component of flux */
 #endif
+
+  //TODO: only include this line if cooling is enabled...
+  //#ifdef ENERGY_COOLING
+  Real Erad;                   /*!< Energy radiated away */
+  //#endif
 }ConsS;
 
 /*----------------------------------------------------------------------------*/

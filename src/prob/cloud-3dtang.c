@@ -315,7 +315,8 @@ void problem(DomainS *pDomain)
           vx   += -(x2/r_cloud) * v_rot;
           vy   =  (x1/r_cloud) * v_rot;
 #if (NSCALARS > 0)
-          if(r < r_cloud){
+          // This line means that the dye does not follow the density in the boundary (dr) region
+          if(r < r_cloud){ 
             dye = rho;
           }
 #endif
@@ -343,6 +344,11 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         pGrid->U[k][j][i].s[0] = dye;
 #endif
+
+#ifdef ENERGY_COOLING
+        pGrid->U[k][j][i].Erad = 0;
+#endif
+
       }
     }
   }
@@ -1402,7 +1408,12 @@ static void integrate_cooling(GridS *pG)
 
         W.P = W.d * temp;
         U = Prim_to_Cons(&W);
+
+        /* record cooled energy */
+        pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
+
         pG->U[k][j][i].E = U.E;
+
       }
     }
   }

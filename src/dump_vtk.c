@@ -314,6 +314,29 @@ void dump_vtk(MeshS *pM, OutputS *pOut)
         }
 #endif
 
+//#ifdef ENERGY_COOLING
+        // Make this quick n dirty --> Always output Erad
+        fprintf(pfile,"\nSCALARS Erad float\n");
+        fprintf(pfile,"LOOKUP_TABLE default\n");
+        for (k=kl; k<=ku; k++) {
+          for (j=jl; j<=ju; j++) {
+            for (i=il; i<=iu; i++) {
+              //if (strcmp(pOut->out,"cons") == 0){
+                data[i-il] = (float)pGrid->U[k][j][i].Erad;
+                /*} else if(strcmp(pOut->out,"prim") == 0) {
+                data[i-il] = (float)pGrid->U[k-kl][j-jl][i-il].Erad;
+               
+              }
+                */
+                //pGrid->U[k][j][i].Erad = 0; // set to zero --> cumulative measure
+            }
+            if(!big_end) ath_bswap(data,sizeof(float),iu-il+1);
+            fwrite(data,sizeof(float),(size_t)ndata0,pfile);
+          }
+        }
+//#endif
+
+
 /* close file and free memory */
 
         fclose(pfile);
