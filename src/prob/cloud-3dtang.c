@@ -25,6 +25,7 @@
 #define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
+#define ENERGY_HEATING // Comment this line for no heating
 /* #define INSTANTCOOL */
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -99,8 +100,8 @@ static int nan_dump_count;
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 
-//#include "prob/cooling_data/SD93_Z1.h"
-#include "prob/cooling_data/SD93_Z1_S10.h"
+#include "prob/cooling_data/SD93_Z1.h"
+//#include "prob/cooling_data/SD93_Z1_S10.h"
 //#include "prob/cooling_data/WSS09_n1_Z1.h"
 //#include "prob/cooling_data/WSS09_CIE_Z1.h"
 
@@ -121,6 +122,9 @@ static Real Yinv(const Real Y1);
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 
 static void integrate_cooling(GridS *pG);
+#ifdef ENERGY_HEATING
+static void radiate_energy(MeshS *pM);
+#endif
 #endif  /* ENERGY_COOLING */
 
 #ifdef INSTANTCOOL
@@ -942,6 +946,9 @@ void Userwork_in_loop(MeshS *pM)
       }
     }
   }
+#ifdef ENERGY_HEATING
+  radiate_energy(pM);
+#endif
 
   if (pM->dt < dtmin){
     data_output(pM,1);
@@ -1421,6 +1428,87 @@ static void integrate_cooling(GridS *pG)
   return;
 
 }
+
+
+#ifdef ENERGY_HEATING
+/*
+  Radiate cooled energy over whole domain
+ */
+static void radiate_energy(MeshS *pM) {
+  Real Erad_total = 0;
+  GridS *pG;
+  int i, j, k, is, ie, js, je, ks, ke;
+  int nl, nd;
+  Real dV;
+  Real V = (pM->RootMaxX[2] - pM->RootMinX[2]) * \
+    (pM->RootMaxX[1] - pM->RootMinX[1]) * \
+    (pM->RootMaxX[0] - pM->RootMinX[0]);
+
+#ifdef MPI_PARALLEL
+  int ierr;
+  Real my_Etot;
+#endif
+
+  // Calculate total energy
+  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
+    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
+      if (pM->Domain[nl][nd].Grid != NULL) {
+        pG = pM->Domain[nl][nd].Grid;
+
+        is = pG->is;  ie = pG->ie;
+        js = pG->js;  je = pG->je;
+        ks = pG->ks;  ke = pG->ke;
+
+        for (k=ks; k<=ke; k++) {
+          for (j=js; j<=je; j++) {
+            for (i=is; i<=ie; i++) {
+              Erad_total += pG->U[k][j][i].Erad;
+              pG->U[k][j][i].Erad = 0.0;
+            }
+          }
+        }
+      }
+    }
+  }
+  ath_pout(0,"Local E %e\n", Erad_total);
+
+#ifdef MPI_PARALLEL
+  my_Etot = Erad_total;
+
+  ierr = MPI_Allreduce(&my_Etot, &Erad_total, 1, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[radiate_energy]: MPI_Allreduce returned error %d\n", ierr);
+#endif
+
+  // Distribute energy over grid
+  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
+    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
+      if (pM->Domain[nl][nd].Grid != NULL) {
+        pG = pM->Domain[nl][nd].Grid;
+
+        is = pG->is;  ie = pG->ie;
+        js = pG->js;  je = pG->je;
+        ks = pG->ks;  ke = pG->ke;
+
+        dV = pG->dx1 * pG->dx2 * pG->dx3;
+        for (k=ks; k<=ke; k++) {
+          for (j=js; j<=je; j++) {
+            for (i=is; i<=ie; i++) {
+              pG->U[k][j][i].E += Erad_total * dV / V;
+            }
+          }
+        }
+      }
+    }
+  }
+  ath_pout(0, "[radiate_energy] Distributed a total energy of %e in fractional "
+           "volumes of %e.\n", Erad_total, dV / V);
+
+}
+#endif /* ENERGY_HEATING */
+
+
+
 
 static void test_cooling()
 {
