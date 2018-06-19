@@ -25,7 +25,7 @@
 #define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
-#define ENERGY_HEATING // Comment this line for no heating
+//#define ENERGY_HEATING // Comment this line for no heating
 /* #define INSTANTCOOL */
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -223,6 +223,11 @@ void problem(DomainS *pDomain)
   nu   = par_getd("problem","nu");
   NuFun_i = NULL;
   NuFun_a = nu_fun;
+#endif
+
+#ifdef THERMAL_CONDUCTION
+  kappa_iso = par_getd_def("problem","kappa_iso",0.0);
+  kappa_aniso = par_getd_def("problem","kappa_aniso",0.0);
 #endif
 
   iseed = -10;
@@ -1470,7 +1475,7 @@ static void radiate_energy(MeshS *pM) {
       }
     }
   }
-  ath_pout(0,"Local E %e\n", Erad_total);
+  //  ath_pout(0,"Local E %e\n", Erad_total);
 
 #ifdef MPI_PARALLEL
   my_Etot = Erad_total;
