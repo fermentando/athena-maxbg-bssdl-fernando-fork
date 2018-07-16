@@ -52,6 +52,14 @@ Real3Vect get_e1(Real theta, Real phi);
 Real3Vect get_e2(Real theta, Real phi);
 Real3Vect get_e3(Real theta, Real phi);
 
+/* custom hst quantities */
+static Real hst_m13(GridS *pG, int i, int j, int k);
+static Real hst_m110(GridS *pG, int i, int j, int k);
+static Real hst_Mx13(GridS *pG, int i, int j, int k);
+
+static Real hst_Erad(GridS *pG, int i, int j, int k);
+
+
 /* dye-weighted hst quantities */
 #if (NSCALARS > 0)
 static Real hst_c(const GridS *pG, const int i, const int j, const int k);
@@ -250,6 +258,12 @@ void problem(DomainS *pDomain)
 #ifdef INSTANTCOOL
   //  CoolingFunc = instant_cool;
 #endif
+
+  dump_history_enroll(hst_m13, "m13");
+  dump_history_enroll(hst_m110, "m110");
+  dump_history_enroll(hst_Mx13, "Mx13");
+
+  dump_history_enroll(hst_Erad, "Erad");
 
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift");
@@ -1765,7 +1779,40 @@ static Real nu_fun(const Real d, const Real T,
 /*==============================================================================
  * HISTORY OUTPUTS:
  *
+
  *----------------------------------------------------------------------------*/
+
+static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
+{
+  if(pG->U[k][j][i].d < frac * drat)
+    return 0;
+  return pG->U[k][j][i].d;
+}
+
+
+static Real hst_m13(GridS *pG, int i, int j, int k)
+{
+  return _hst_mcut(pG, i, j, k, 1/3.);
+}
+
+static Real hst_m110(GridS *pG, int i, int j, int k)
+{
+  return _hst_mcut(pG, i, j, k, 0.1);
+}
+
+
+static Real hst_Mx13(GridS *pG, int i, int j, int k)
+{
+  if(pG->U[k][j][i].d < drat / 3.)
+    return 0;
+  return pG->U[k][j][i].M1;
+}
+
+static Real hst_Erad(GridS *pG, int i, int j, int k)
+{
+  return pG->U[k][j][i].Erad;
+}
+
 
 #ifdef FOLLOW_CLOUD
 static Real hst_xshift(GridS *pG, int i, int j, int k)
@@ -1781,6 +1828,103 @@ static Real hst_vflow(GridS *pG, int i, int j, int k)
 }
 #endif
 
+
+/* dye-weighted hst quantities */
+#if (NSCALARS > 0)
+static Real hst_c(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0]);
+}
+
+static Real hst_c_sq(const GridS *pG, const int i, const int j, const int k)
+{
+  return (SQR(pG->U[k][j][i].s[0]));
+}
+
+static Real hst_cE(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].E);
+}
+
+static Real hst_cx1(const GridS *pG, const int i, const int j, const int k)
+{
+  Real x1, x2, x3;
+  cc_pos(pG,i,j,k,&x1,&x2,&x3);
+  return (pG->U[k][j][i].s[0] * x1);
+}
+
+static Real hst_cvx(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d);
+}
+
+static Real hst_cvy(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d);
+}
+
+static Real hst_cvz(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d);
+}
+
+
+static Real hst_cvx_sq(const GridS *pG, const int i, const int j, const int k)
+{
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d));
+}
+
+static Real hst_cvy_sq(const GridS *pG, const int i, const int j, const int k)
+{
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d));
+}
+
+static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k)
+{
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d));
+}
+
+#ifdef MHD
+static Real hst_cBx(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B1c);
+}
+
+static Real hst_cBy(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B2c);
+}
+
+static Real hst_cBz(const GridS *pG, const int i, const int j, const int k)
+{
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B3c);
+}
+#endif  /* MHD */
+
+static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k)
+{
+  Real dye = pG->U[k][j][i].s[0] / pG->U[k][j][i].d;
+  Real rho = pG->U[k][j][i].d;
+
+  if (dye < TINY_NUMBER)
+    return 0.0;
+
+  return (-1.0 * rho * dye * log(dye));
+}
+
+#ifdef ENERGY_COOLING
+static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
+{
+  PrimS W = Cons_to_Prim(&(pG->U[k][j][i]));
+  Real temp = W.P / W.d;
+  Real cs = sqrt(Gamma * temp);
+  return cs * tcool(W.d, temp);
+  //return 1.;
+}
+#endif
+
+
+#endif  /* NSCALARS */
 
 
 
@@ -2556,102 +2700,8 @@ static Real RandomNormal2(Real mu, Real sigma)
   return (mu + y1 * sigma);
 }
 
-/* dye-weighted hst quantities */
-#if (NSCALARS > 0)
-static Real hst_c(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0]);
-}
-
-static Real hst_c_sq(const GridS *pG, const int i, const int j, const int k)
-{
-  return (SQR(pG->U[k][j][i].s[0]));
-}
-
-static Real hst_cE(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].E);
-}
-
-static Real hst_cx1(const GridS *pG, const int i, const int j, const int k)
-{
-  Real x1, x2, x3;
-  cc_pos(pG,i,j,k,&x1,&x2,&x3);
-  return (pG->U[k][j][i].s[0] * x1);
-}
-
-static Real hst_cvx(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d);
-}
-
-static Real hst_cvy(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d);
-}
-
-static Real hst_cvz(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d);
-}
 
 
-static Real hst_cvx_sq(const GridS *pG, const int i, const int j, const int k)
-{
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d));
-}
-
-static Real hst_cvy_sq(const GridS *pG, const int i, const int j, const int k)
-{
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d));
-}
-
-static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k)
-{
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d));
-}
-
-#ifdef MHD
-static Real hst_cBx(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B1c);
-}
-
-static Real hst_cBy(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B2c);
-}
-
-static Real hst_cBz(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B3c);
-}
-#endif  /* MHD */
-
-static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k)
-{
-  Real dye = pG->U[k][j][i].s[0] / pG->U[k][j][i].d;
-  Real rho = pG->U[k][j][i].d;
-
-  if (dye < TINY_NUMBER)
-    return 0.0;
-
-  return (-1.0 * rho * dye * log(dye));
-}
-
-#ifdef ENERGY_COOLING
-static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
-{
-  PrimS W = Cons_to_Prim(&(pG->U[k][j][i]));
-  Real temp = W.P / W.d;
-  Real cs = sqrt(Gamma * temp);
-  return cs * tcool(W.d, temp);
-  //return 1.;
-}
-#endif
-
-
-#endif  /* NSCALARS */
 
 
 /*
