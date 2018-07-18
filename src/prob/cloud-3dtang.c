@@ -709,6 +709,14 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   //  CoolingFunc = instant_cool;
 #endif
 
+  // Re-enroll hst dumps after restart
+  dump_history_enroll(hst_m13, "m13");
+  dump_history_enroll(hst_m110, "m110");
+  dump_history_enroll(hst_Mx13, "Mx13");
+
+  dump_history_enroll(hst_Erad, "Erad");
+
+
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift");
   dump_history_enroll_alt(hst_vflow,  "v_flow");
@@ -735,6 +743,10 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 #endif /* MHD */
   dump_history_enroll(hst_Sdye, "dye entropy");
 #endif  /* NSCALARS */
+
+#ifdef ENERGY_COOLING
+  dump_history_enroll(hst_cstcool, "cs*tcool");
+#endif
 
 
   /* DANGER: make sure the order here matches the order in write_restart() */
