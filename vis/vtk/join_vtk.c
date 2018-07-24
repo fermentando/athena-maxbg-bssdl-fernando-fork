@@ -420,6 +420,8 @@ static void read_write_scalar(FILE *fp_out){
   int i, j, k, ig, jg, kg, nread;
   float fdat;
 
+  fprintf(stderr, "infunc");
+
   for(kg=0; kg<NGrid_z; kg++){
     for(jg=0; jg<NGrid_y; jg++){
       for(ig=0; ig<NGrid_x; ig++){
@@ -428,6 +430,7 @@ static void read_write_scalar(FILE *fp_out){
         fseek(domain_3d[kg][jg][ig].fp,domain_3d[kg][jg][ig].pos, SEEK_SET);
       }
     }
+    fprintf(stderr, "infunc2");
     for(k=0; k<domain_3d[kg][0][0].Nz; k++){
       for(jg=0; jg<NGrid_y; jg++){
 	for(j=0; j<domain_3d[0][jg][0].Ny; j++){
@@ -446,6 +449,7 @@ static void read_write_scalar(FILE *fp_out){
 	}
       }
     }
+    fprintf(stderr, "infunc3");
     for(jg=0; jg<NGrid_y; jg++){
       for(ig=0; ig<NGrid_x; ig++){
         domain_3d[kg][jg][ig].pos=ftell(domain_3d[kg][jg][ig].fp);
@@ -453,7 +457,7 @@ static void read_write_scalar(FILE *fp_out){
       }
     }
   }
-
+  fprintf(stderr, "donefunc");
   return;
 }
 
@@ -566,78 +570,89 @@ static void write_joined_vtk(const char *out_name){
   fprintf(fp_out,"SPACING %e %e %e\n", dx, dy, dz);
   fprintf(fp_out,"CELL_DATA %d\n",nxt*nyt*nzt);
 
-  while(1){
+  while(1){ // begin big loop
     for(k=0; k<NGrid_z; k++){
       for(j=0; j<NGrid_y; j++){
-	for(i=0; i<NGrid_x; i++){
+        for(i=0; i<NGrid_x; i++){
 
           if((domain_3d[k][j][i].fp = fopen(domain_3d[k][j][i].fname,"r")) == NULL)
             join_error("Error opening file \"%s\"\n",domain_3d[k][j][i].fname);
+          fprintf(stderr, "lala");
           fseek(domain_3d[k][j][i].fp,domain_3d[k][j][i].pos, SEEK_SET);
 
-	  if(i == 0 && j == 0 && k == 0){
-	    retval = fscanf(domain_3d[k][j][i].fp,"%s %s %s\n",
-			    type, variable, format);
+          fprintf(stderr, "a");
 
-	    if(retval == EOF){ /* Assuming no errors, we are done... */
-	      fclose(fp_out);
-	      return;
-	    }
+          if(i == 0 && j == 0 && k == 0){
+            fprintf(stderr, "A (%s,%s,%s)\n", type,variable,format);
+            retval = fscanf(domain_3d[k][j][i].fp,"%s %s %s\n",
+                            type, variable, format);
+            // THE LINE BEFORE SHOULD be done / read EOF but finds something else...?
+            fprintf(stderr, "B");
 
-	    if(strcmp(format, "float") != 0){
-	      fclose(fp_out);
-	      join_error("Expected \"float\" format, found \"%s\"\n",format);
-	    }
-	  }
-	  else{
-	    retval = fscanf(domain_3d[k][j][i].fp,"%s %s %s\n",
-			    t_type, t_variable, t_format);
+            if(retval == EOF){ /* Assuming no errors, we are done... */
+              fclose(fp_out);
+              return;
+            }
+            fprintf(stderr, "b");
 
-	    if(retval == EOF){ /* This shouldn't occur... */
-	      fclose(fp_out);
-	      fprintf(stderr,"[join_vtk_dump]: EOF returned for file \"%s\"\n",
-		      domain_3d[k][j][i].fname);
-	      return;
-	    }
+            if(strcmp(format, "float") != 0){
+              fclose(fp_out);
+              join_error("Expected \"float\" format, found \"%s\"\n",format);
+            }
+          } else{
+            fprintf(stderr, "c");
+            retval = fscanf(domain_3d[k][j][i].fp,"%s %s %s\n",
+                            t_type, t_variable, t_format);
 
-	    if(strcmp(type, t_type) != 0 ||
-	       strcmp(variable, t_variable) != 0 ||
-	       strcmp(format, t_format) != 0 ){
-	      fclose(fp_out);
-	      join_error("mismatch in input file positions\n");
-	    }
-	  }
+            if(retval == EOF){ /* This shouldn't occur... */
+              fclose(fp_out);
+              fprintf(stderr,"[join_vtk_dump]: EOF returned for file \"%s\"\n",
+                      domain_3d[k][j][i].fname);
+              return;
+            }
+            fprintf(stderr, "t");
 
-	  if(strcmp(type, "SCALARS") == 0){
-	    /* Read in the LOOKUP_TABLE (only default supported for now) */
-	    fscanf(domain_3d[k][j][i].fp,"%s %s\n", t_type, t_format);
-	    if(strcmp(t_type, "LOOKUP_TABLE") != 0 ||
-	       strcmp(t_format, "default") != 0 ){
-	      fclose(fp_out);
-	      fprintf(stderr,"Expected \"LOOKUP_TABLE default\"\n");
-	      join_error("Found \"%s %s\"\n",t_type,t_format);
-	    }
-	  }
+            if(strcmp(type, t_type) != 0 ||
+               strcmp(variable, t_variable) != 0 ||
+               strcmp(format, t_format) != 0 ){
+              fclose(fp_out);
+              join_error("mismatch in input file positions\n");
+            }
+          }
+          fprintf(stderr, "z");
 
-	  /* Prevent leading data bytes that correspond to "white space"
-	     from being consumed by the fscanf's above -- MNL 2/6/06 */
+          if(strcmp(type, "SCALARS") == 0){
+            /* Read in the LOOKUP_TABLE (only default supported for now) */
+            fscanf(domain_3d[k][j][i].fp,"%s %s\n", t_type, t_format);
+            if(strcmp(t_type, "LOOKUP_TABLE") != 0 ||
+               strcmp(t_format, "default") != 0 ){
+              fclose(fp_out);
+              fprintf(stderr,"Expected \"LOOKUP_TABLE default\"\n");
+              join_error("Found \"%s %s\"\n",t_type,t_format);
+            }
+          }
+
+          /* Prevent leading data bytes that correspond to "white space"
+             from being consumed by the fscanf's above -- MNL 2/6/06 */
           assert(fseek(domain_3d[k][j][i].fp, -1, SEEK_CUR) == 0);
-	  while (isspace(fgetc(domain_3d[k][j][i].fp)))
+          while (isspace(fgetc(domain_3d[k][j][i].fp)))
             assert(fseek(domain_3d[k][j][i].fp, -2, SEEK_CUR) == 0);
-	  assert(fgetc(domain_3d[k][j][i].fp) == '\n');
+          assert(fgetc(domain_3d[k][j][i].fp) == '\n');
 
           domain_3d[k][j][i].pos=ftell(domain_3d[k][j][i].fp);
           fclose(domain_3d[k][j][i].fp);
-	}
+        }
       }
     }
 
     printf("Reading: \"%s %s %s\"\n",type,variable,format);
+    fprintf(stderr, "1");
 
     /* Now, every file should agree that we either have SCALARS or
        VECTORS data */
     fprintf(fp_out,"%s %s %s\n",type,variable,format);
     if(strcmp(type, "SCALARS") == 0){
+      fprintf(stderr, "2");
       fprintf(fp_out,"LOOKUP_TABLE default\n");
       read_write_scalar(fp_out);
     }
@@ -646,8 +661,9 @@ static void write_joined_vtk(const char *out_name){
     }
     else
       join_error("Input type = \"%s\"\n",type);
-  }
+  } // end big loop
 
+  fprintf(stderr, "done!!!");
   return;
 }
 

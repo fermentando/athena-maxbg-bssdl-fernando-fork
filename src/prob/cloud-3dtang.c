@@ -2237,6 +2237,7 @@ static void bc_ix1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
+  Real v;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
   Real x1, x2, x3, r;
@@ -2251,11 +2252,17 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][i].s[0] = 0.0;
 #endif
 
+#ifdef FLOW_PROFILE
+        v = XXX;
+#else
+        v = vflow;
+#endif
+
         pGrid->U[k][j][is-i].d  = 1.0;
-        pGrid->U[k][j][is-i].M1 = 1.0 * vflow;
+        pGrid->U[k][j][is-i].M1 = 1.0 * v;
         pGrid->U[k][j][is-i].M2 = 0.0;
         pGrid->U[k][j][is-i].M3 = 0.0;
-        pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(vflow);
+        pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(v);
         // Added by Max
 #ifndef ISOTHERMAL
         pGrid->U[k][j][is-i].E += dp / Gamma_1;
