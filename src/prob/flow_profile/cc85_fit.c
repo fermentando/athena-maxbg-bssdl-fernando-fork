@@ -1,16 +1,14 @@
-#include "copyright.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "defs.h"
-#include "athena.h"
-#include "globals.h"
-#include "prototypes.h"
+#include "../../defs.h"
+#include "../../athena.h"
+#include "../../globals.h"
+#include "../../prototypes.h"
 
 #include "cc85_fit.h"
 
-#include <math.h>
 
 #define VELOCITY_CONV 1.1192359020509211e-03 // from km/s to code units
 
