@@ -25,7 +25,8 @@
 #define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
-//#define ENERGY_HEATING // Comment this line for no heating
+#define FLOW_PROFILE
+//#define ENERGY_HEATING // Uncomment this line for heating
 /* #define INSTANTCOOL */
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -104,6 +105,10 @@ static OutputS nan_dump;
 static int nan_dump_count;
 #endif  /* REPORT_NANS */
 
+#ifdef FLOW_PROFILE
+#include "prob/flow_profile/cc85_fit.h"
+#endif /* FLOW_PROFILE */
+
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
@@ -173,7 +178,7 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
-  Real rho, vx, vy, v_turb, v_rot;
+  Real rho, vx, vy, vz, v_turb, v_rot;
   Real fact;
 
   int iseed;
@@ -194,7 +199,11 @@ void problem(DomainS *pDomain)
 #endif
 
   drat   = par_getd("problem", "drat");
-  vflow  = par_getd("problem", "vflow");
+#ifdef FLOW_PROFILE
+  vflow = 0.0;
+#else
+  vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
+#endif
   vflow0 = vflow;
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
@@ -250,6 +259,10 @@ void problem(DomainS *pDomain)
 #endif
 #endif
 
+#ifdef FLOW_PROFILE
+  flow_profile_init();
+#endif
+
 #ifdef ENERGY_COOLING
   init_cooling();
   /* test_cooling(); */
@@ -295,7 +308,6 @@ void problem(DomainS *pDomain)
 #endif
 #endif /* NSCALARS */
 
-
 #ifdef REPORT_NANS
   nan_dump_count = 0;
 #endif
@@ -306,6 +318,8 @@ void problem(DomainS *pDomain)
   nx1 = (ie-is)+1 + 2*nghost;
   nx2 = (je-js)+1 + 2*nghost;
   nx3 = (ke-ks)+1 + 2*nghost;
+  int iprint = 0;
+  vx = vy = vz = 0.0;
 
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
@@ -313,16 +327,34 @@ void problem(DomainS *pDomain)
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
         r = sqrt(x1*x1+x2*x2+x3*x3);
 
+#ifdef FLOW_PROFILE
+        rho = flow_profile_density(x1, x2, x3);
+        vx  = flow_profile_velocity_x(x1, x2, x3);
+        vy  = flow_profile_velocity_y(x1, x2, x3);
+        vz  = flow_profile_velocity_z(x1, x2, x3);
+
+
+        /* if((j == js) && (k== ks)) */
+        /*   printf("%.2f --> (%e, %e)\n", x1, rho, vx); */
+
+#else // Static inflow
         rho  = 1.0;
         // Fix pressure so that temperature is normed to what it was with drat=1e3
         // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
         vx   = vflow;
+#endif
 
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
 
         if (r < r_cloud) {
+          if(iprint == 0) {
+            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g\n", sqrt(drat) * r_cloud / vx,
+                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
+            iprint = 1;
+          }
+
           vx   = -(x2/r_cloud) * v_rot;
           vy   =  (x1/r_cloud) * v_rot;
 
@@ -333,6 +365,9 @@ void problem(DomainS *pDomain)
 #endif
         }
         if (dr > 0.0){
+#ifdef FLOW_PROFILE
+          ath_error("dr > 0 with flow profile not (yet) supported.\n");
+#endif
           rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
           vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
           vx   += -(x2/r_cloud) * v_rot;
@@ -347,8 +382,8 @@ void problem(DomainS *pDomain)
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
         pGrid->U[k][j][i].M1 = rho * vx;
-        pGrid->U[k][j][i].M2 = 0.0;
-        pGrid->U[k][j][i].M3 = 0.0;
+        pGrid->U[k][j][i].M2 = rho * vy;
+        pGrid->U[k][j][i].M3 = rho * vz;
 
         /* if (r < r_cloud && v_turb > 0.0) {
           pGrid->U[k][j][i].M1 += rho * RandomNormal(0.0, v_turb);
@@ -360,8 +395,12 @@ void problem(DomainS *pDomain)
 
         // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-        pGrid->U[k][j][i].E = 1.0 + 0.5 * rho * SQR(vx);
-        pGrid->U[k][j][i].E += dp / Gamma_1;
+#ifdef FLOW_PROFILE
+        pGrid->U[k][j][i].E = flow_profile_pressure(x1, x2, x3) / Gamma_1;
+#else
+        pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
+#endif /* FLOW_PROFILE */
+        pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx)+SQR(vy)+SQR(vz));
 #endif  /* ISOTHERMAL */
 
 #if (NSCALARS > 0)
@@ -371,6 +410,9 @@ void problem(DomainS *pDomain)
 #ifdef ENERGY_COOLING
         pGrid->U[k][j][i].Erad = 0;
 #endif
+
+        printf("1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz);
+
 
       }
     }
@@ -921,11 +963,10 @@ void Userwork_in_loop(MeshS *pM)
 
 #ifdef FOLLOW_CLOUD
   dvx = cloud_mass_weighted_velocity(pM);
-  if(fabs(dvx) > .01 || dvx < 0.0){
+  if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
     ath_pout(0,"[bad dvx:] %0.20e setting to 0.\n",dvx);
     dvx = 0.0;
   }
-
 
   if(dvx > 0.0){
     expt = floor(log10(dvx));
@@ -936,17 +977,13 @@ void Userwork_in_loop(MeshS *pM)
   }
   ath_pout(0,"[dvx:]  %0.20e\n",dvx);
 
-  if(vflow - dvx < 0.0){
+#ifndef FLOW_PROFILE
+  if(vflow - dvx < 0.0){ // does not allow vflow < 0
     dvx = vflow;
-    vflow = 0.0;
-
   }
-  else{
+#endif /* not FLOW_PROFILE */
     vflow -= dvx;
-  }
-
-
-#endif
+#endif /* FOLLOW_CLOUD */
 
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
@@ -2237,12 +2274,13 @@ static void bc_ix1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
-  Real v;
+  Real vx, vy, vz, rho, cx1;
+  Real x1, x2, x3, r;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
-  Real x1, x2, x3, r;
 #endif
 
+  vx = vy = vz = 0;
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
@@ -2253,20 +2291,31 @@ static void bc_ix1(GridS *pGrid)
 #endif
 
 #ifdef FLOW_PROFILE
-        v = XXX;
+        cc_pos(pGrid,is - i,j,k,&x1,&x2,&x3);
+        cx1 = x1 + x_shift; // x_shift > 0
+        vx = flow_profile_velocity_x(cx1, x2, x3) + vflow; // v_flow < 0
+        vy = flow_profile_velocity_y(cx1, x2, x3);
+        vz = flow_profile_velocity_z(cx1, x2, x3);
+        rho = flow_profile_density(cx1, x2, x3);
+        if((k == ks) && (j == js))
+          printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow);
 #else
-        v = vflow;
+        vx = vflow;
+        rho = 1.0;
 #endif
+        pGrid->U[k][j][is-i].d  = rho;
+        pGrid->U[k][j][is-i].M1 = rho * vx;
+        pGrid->U[k][j][is-i].M2 = rho * vy;
+        pGrid->U[k][j][is-i].M3 = rho * vz;
 
-        pGrid->U[k][j][is-i].d  = 1.0;
-        pGrid->U[k][j][is-i].M1 = 1.0 * v;
-        pGrid->U[k][j][is-i].M2 = 0.0;
-        pGrid->U[k][j][is-i].M3 = 0.0;
-        pGrid->U[k][j][is-i].E  = 1.0 + 0.5*SQR(v);
-        // Added by Max
 #ifndef ISOTHERMAL
-        pGrid->U[k][j][is-i].E += dp / Gamma_1;
-#endif
+#ifdef FLOW_PROFILE
+        pGrid->U[k][j][is-i].E = flow_profile_pressure(cx1, x2, x3) / Gamma_1;
+#else
+        pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
+#endif /* FLOW_PROFILE */
+        pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
+#endif  /* ISOTHERMAL */
 
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;

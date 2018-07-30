@@ -202,6 +202,27 @@ else
 fi
 
 #-------------------------------------------------------------------------------
+# PACKAGE: flow profile
+#   --with-flow-profile=NAME (default is "")
+#-------------------------------------------------------------------------------
+AC_SUBST(FLOW_PROFILE)
+AC_ARG_WITH(flow-profile,
+[--with-flow-profile=NAME  Flow profile from src/flow_profile/name.c],
+flow_profile=$withval, flow_profile="")
+FLOW_PROFILE=$flow_profile
+if test "$flow_profile" = ""; then
+rm -f src/flow_profile.c
+else
+if test -e src/flow_profile/$FLOW_PROFILE.c; then
+rm -f src/flow_profile.c
+ln -s flow_profile/$FLOW_PROFILE.c src/flow_profile.c
+else
+ls src/flow_profile/*.c
+AC_MSG_ERROR([Invalid flow_profile filename, valid names listed above])
+fi
+fi
+
+#-------------------------------------------------------------------------------
 # PHYSICS FEATURE: explicit thermal conduction
 #  --enable-conduction
   
@@ -564,6 +585,7 @@ else
 fi
 
 
+
 #-------------------------------------------------------------------------------
 # check for compatibility of various options
 
@@ -646,4 +668,6 @@ echo "Static Mesh Refinement:  $SMR_MODE_USER"
 echo "first-order flux corr:   $FOFC_MODE_USER"
 echo "ROTATING_FRAME:          $ROTATING_FRAME_MODE_USER"
 echo "L1_INFLOW:               $L1_INFLOW_MODE_USER"
+echo "FLOW_PROFILE:            $FLOW_PROFILE"
+
 
