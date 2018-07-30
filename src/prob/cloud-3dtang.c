@@ -350,7 +350,7 @@ void problem(DomainS *pDomain)
 
         if (r < r_cloud) {
           if(iprint == 0) {
-            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g\n", sqrt(drat) * r_cloud / vx,
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n", sqrt(drat) * r_cloud / vx,
                      tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
             iprint = 1;
           }
@@ -411,7 +411,7 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].Erad = 0;
 #endif
 
-        printf("1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz);
+        /* printf("1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz); */
 
 
       }
@@ -2297,8 +2297,8 @@ static void bc_ix1(GridS *pGrid)
         vy = flow_profile_velocity_y(cx1, x2, x3);
         vz = flow_profile_velocity_z(cx1, x2, x3);
         rho = flow_profile_density(cx1, x2, x3);
-        if((k == ks) && (j == js))
-          printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow);
+        /* if((k == ks) && (j == js)) */
+        /*   printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow); */
 #else
         vx = vflow;
         rho = 1.0;
