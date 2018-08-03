@@ -25,7 +25,7 @@
 #define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
-#define FLOW_PROFILE
+//#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
 //#define ENERGY_HEATING // Uncomment this line for heating
 /* #define INSTANTCOOL */
 static void bc_ix1(GridS *pGrid);
@@ -2284,10 +2284,14 @@ static void bc_ix1(GridS *pGrid)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
-        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+        /*
+         This line was uncommented before...which seems to change the rest of
+         the function. Seems better that way, though...?
+        */
+        //pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
-        pGrid->U[k][j][i].s[0] = 0.0;
+        pGrid->U[k][j][is - i].s[0] = 0.0;
 #endif
 
 #ifdef FLOW_PROFILE
