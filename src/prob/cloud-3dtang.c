@@ -964,7 +964,7 @@ void Userwork_in_loop(MeshS *pM)
 #ifdef FOLLOW_CLOUD
   dvx = cloud_mass_weighted_velocity(pM);
   if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
-    ath_pout(0,"[bad dvx:] %0.20e setting to 0.\n",dvx);
+    ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
     dvx = 0.0;
   }
 
@@ -975,7 +975,7 @@ void Userwork_in_loop(MeshS *pM)
     newdvx = newdvx * pow(10.0, expt);
     dvx = newdvx;
   }
-  ath_pout(0,"[dvx:]  %0.20e\n",dvx);
+  ath_pout(0,"[dvx:]  %0.15e [vflow:] %.15e\n",dvx,vflow);
 
 #ifndef FLOW_PROFILE
   if(vflow - dvx < 0.0){ // does not allow vflow < 0
@@ -2287,6 +2287,7 @@ static void bc_ix1(GridS *pGrid)
         /*
          This line was uncommented before...which seems to change the rest of
          the function. Seems better that way, though...?
+         *but* caused MHD error!
         */
         //pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
 
@@ -2334,7 +2335,7 @@ static void bc_ix1(GridS *pGrid)
 #endif
       }
     }
-  }
+  } // End loop over grid cells
 
 
 #ifdef MHD
