@@ -35,8 +35,6 @@ static void bc_ox1(GridS *pGrid);
 //static void bc_ix3(GridS *pGrid);
 //static void bc_ox3(GridS *pGrid);
 
-static void initial_field(DomainS *pDomain);
-
 static void check_div_b(GridS *pGrid);
 
 
@@ -154,7 +152,7 @@ static Real hst_xshift(GridS *pG, int i, int j, int k);
 static Real hst_vflow(GridS *pG, int i, int j, int k);
 #endif
 
-static Real drat, vflow, vflow0, betain, betaout,dr,bz,dp,tnotcool, r_cloud;
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 
@@ -171,6 +169,12 @@ static Real pro(Real r, Real rcloud)
   return (r/rcloud - log(cosh(r/rcloud))) / log(2);
 }
 
+
+
+/*==============================================================================
+ * INITIAL CONDITION:
+ *
+ *----------------------------------------------------------------------------*/
 void problem(DomainS *pDomain)
 {
   GridS *pGrid = pDomain->Grid;
@@ -208,16 +212,20 @@ void problem(DomainS *pDomain)
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
+
+#ifdef MHD
+  tangled = par_getd_def("problem","tangled",1);
   betain = par_getd("problem", "betain");
-  betaout = par_getd("problem", "betaout");
+  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
+  betaout_z = par_getd("problem", "betaout_z");
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+#endif
 
   v_turb = par_getd_def("problem", "v_turb", 0.0);
   v_rot  = par_getd_def("problem", "v_rot",  0.0);
 
   r_cloud = par_getd_def("problem", "r_cloud", 0.25);
   dr = par_getd_def("problem", "dr", 0.0);
-  bz =  par_getd_def("problem", "Bz", 0.0);
-  tangled = par_getd_def("problem","tangled",1);
 
   /*Real tfloor    = 1.0e-2 / drat;
   Real tceil     = 100.0;
@@ -228,7 +236,6 @@ void problem(DomainS *pDomain)
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
   d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
@@ -418,8 +425,6 @@ void problem(DomainS *pDomain)
     }
   }
   if(tangled){
-    // initial_field(pDomain, r_cloud);
-
     A = (Real3Vect***) calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
 
 
@@ -469,12 +474,14 @@ void problem(DomainS *pDomain)
       add_term(A, pGrid, theta, phi, alpha, beta, amp);
     }
 
+    Real Bin = sqrt((2.0 * Gamma_1 + dp) / betain);
+
     for (k=0; k<nx3; k++) {
       for (j=0; j<nx2; j++) {
         for (i=0; i<nx1; i++) {
-          A[k][j][i].x1 *= sqrt(2.0*Gamma_1/nterms/betain);
-          A[k][j][i].x2 *= sqrt(2.0*Gamma_1/nterms/betain);
-          A[k][j][i].x3 *= sqrt(2.0*Gamma_1/nterms/betain);
+          A[k][j][i].x1 *= Bin / sqrt(nterms);
+          A[k][j][i].x2 *= Bin / sqrt(nterms);
+          A[k][j][i].x3 *= Bin / sqrt(nterms);
 
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           r = sqrt(x1*x1 + x2*x2 + x3*x3);
@@ -502,26 +509,30 @@ void problem(DomainS *pDomain)
     }
   }
 
+  Real Bout_z = sqrt(2.0 * (Gamma_1 - dp) / betaout_z);
+  Real Bout_y = sqrt(2.0 * (Gamma_1 - dp) / betaout_y);
+
   ju = (pGrid->Nx[1] > 1) ? je+1 : je;  //so we don't go beyond array in 2d 
   for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) { 
+    for (j=js; j<=ju; j++) {
       for (i=is; i<=ie; i++) {
         pGrid->B2i[k][j][i] = 0.0;
         if(tangled){
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B2i[k][j][i] = (A[k+1][j][i].x1 - A[k][j][i].x1)/pGrid->dx3 -
-            (A[k][j][i+1].x3 - A[k][j][i].x3)/pGrid->dx1 + bscale*sqrt(2.0 * Gamma_1 / betaout);
+            (A[k][j][i+1].x3 - A[k][j][i].x3)/pGrid->dx1 + bscale * Bout_y;
+          //printf("1234.1234 %g %g\n", x1, pGrid->B2i[k][j][i]);
         }
         else{
-          pGrid->B2i[k][j][i] =  sqrt(2.0 * Gamma_1 / betaout);
+          pGrid->B2i[k][j][i] = Bout_y;
         }
       }
     }
   }
 
   ku = (pGrid->Nx[2] > 1) ? ke+1 : ke; //so we don't go beyond array in 2d
-  for (k=ks; k<=ku; k++) { 
+  for (k=ks; k<=ku; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         pGrid->B3i[k][j][i] = 0.0;
@@ -529,10 +540,11 @@ void problem(DomainS *pDomain)
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
-            (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale*bz;
+            (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
+          //printf("12345.12345 %g %g\n", x1, pGrid->B3i[k][j][i]);
         }
         else{
-          pGrid->B3i[k][j][i] = bz;
+          pGrid->B3i[k][j][i] = Bout_z;
         }
       }
     }
@@ -717,16 +729,18 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   vflow = par_getd("problem", "vflow");
   vflow0 = vflow;
 
-
-  betain  = par_getd("problem", "betain");
-  betaout = par_getd("problem", "betaout");
-  bz =  par_getd_def("problem", "Bz", 0.0);
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
   d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
+
+#ifdef MHD
+  betain = par_getd("problem", "betain");
+  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
+  betaout_z = par_getd("problem", "betaout_z");
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+#endif
 
   dp = par_getd_def("problem", "dp", 0.0);
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
@@ -1976,293 +1990,6 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
 #endif  /* NSCALARS */
 
 
-
-/*==============================================================================
- * INITIAL CONDITION:
- *
- *----------------------------------------------------------------------------*/
-
-static void initial_field(DomainS *pDomain)
-{
-  GridS *pGrid = pDomain->Grid;
-  int i, j, k, i2, j2, k2;
-
-  int is, ie, js, je, ks, ke;
-  int il, iu, jl, ju, kl, ku;
-
-  Real x1, x2, x3, x1f, x2f, x3f, r;
-  int nx1, nx2, nx3;
-
-  /* vector potential */
-  Real ***az, ***ay, ***ax;
-
-  /* Read in a random vector potential from a file */
-  /* -- hard-code the size in for now */
-  Real *xvals, *yvals, *zvals;
-  Real ***axin, ***ayin, ***azin;
-  const int  insize  = 256;
-  Real inrange = 3.0 * r_cloud;
-  int num;
-
-  Real grad_a[3], dr[3];
-
-  FILE *infile;
-  char *fname = par_gets_def("problem", "vecpot_file", "vecpot.dat");
-
-
-
-  /* populate indata[] from file */
-  xvals = (Real*) calloc_1d_array(insize, sizeof(Real));
-  yvals = (Real*) calloc_1d_array(insize, sizeof(Real));
-  zvals = (Real*) calloc_1d_array(insize, sizeof(Real));
-
-  axin = (Real***) calloc_3d_array(insize, insize, insize, sizeof(Real));
-  ayin = (Real***) calloc_3d_array(insize, insize, insize, sizeof(Real));
-  azin = (Real***) calloc_3d_array(insize, insize, insize, sizeof(Real));
-
-  for (i=0; i<insize; i++){
-    xvals[i] = yvals[i] = zvals[i] = (2.0*inrange)*i/(insize-1) - inrange;
-  }
-
-  infile = fopen(fname, "r");
-  if (infile == NULL)
-    ath_error("[initial_field]: could not open input file: %s\n", fname);
-
-  for(k=0; k<insize; k++) {
-    for (j=0; j<insize; j++) {
-      num = fread(axin[k][j], sizeof(double), insize, infile);
-      if (num != insize)
-        ath_error("[initial_field]: error reading ax from input file: %s\n", fname);
-    }
-  }
-
-  for(k=0; k<insize; k++) {
-    for (j=0; j<insize; j++) {
-      num = fread(ayin[k][j], sizeof(double), insize, infile);
-      if (num != insize)
-        ath_error("[initial_field]: error reading ay from input file: %s\n", fname);
-    }
-  }
-
-  for(k=0; k<insize; k++) {
-    for (j=0; j<insize; j++) {
-      num = fread(azin[k][j], sizeof(double), insize, infile);
-      if (num != insize)
-        ath_error("[initial_field]: error reading az from input file: %s\n", fname);
-    }
-  }
-
-  fclose(infile);
-
-
-
-  /* sort out coordinates */
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
-
-  il = is;    iu = ie+1;
-  jl = js;    ju = je+1;
-  kl = ks;    ku = (pGrid->Nx[2] > 1) ? ke+1 : ke;
-
-  nx1 = (ie-is)+1 + 2*nghost;
-  nx2 = (je-js)+1 + 2*nghost;
-  nx3 = (ke-ks)+1 + 2*nghost;
-
-  ax = (Real***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real));
-  ay = (Real***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real));
-  az = (Real***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real));
-
-
-  /*  */
-  for (k=kl; k<=ku; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-#ifdef MHD
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x1f = x1 - 0.5*pGrid->dx1;
-        x2f = x2 - 0.5*pGrid->dx2;
-        x3f = (pGrid->Nx[2] > 1) ? x3 - 0.5*pGrid->dx3 : 0.0;
-
-        r = sqrt(x1f*x1f + x2f*x2f + x3f*x3f);
-
-        i2 = locate(xvals, x1f, insize);
-        j2 = locate(yvals, x2f, insize);
-        k2 = locate(zvals, x3f, insize);
-
-        if (r > r_cloud) {
-          az[k][j][i] = ay[k][j][i] = ax[k][j][i] = 0.0;
-        } else {
-          dr[0] = x1f-xvals[i2];
-          dr[1] = x2f-yvals[j2];
-          dr[2] = x3f-zvals[k2];
-
-          /* interpolate ax from input*/
-          grad_a[0] = (axin[k2  ][j2  ][i2+1]-axin[k2][j2][i2])/(xvals[i2+1]-xvals[i2]);
-          grad_a[1] = (axin[k2  ][j2+1][i2  ]-axin[k2][j2][i2])/(yvals[j2+1]-yvals[j2]);
-          grad_a[2] = (axin[k2+1][j2  ][i2  ]-axin[k2][j2][i2])/(zvals[k2+1]-zvals[k2]);
-
-          ax[k][j][i] = axin[k2][j2][i2]
-            + dr[0] * grad_a[0]
-            + dr[1] * grad_a[1]
-            + dr[2] * grad_a[2];
-
-          /* interpolate ay from input*/
-          grad_a[0] = (ayin[k2  ][j2  ][i2+1]-ayin[k2][j2][i2])/(xvals[i2+1]-xvals[i2]);
-          grad_a[1] = (ayin[k2  ][j2+1][i2  ]-ayin[k2][j2][i2])/(yvals[j2+1]-yvals[j2]);
-          grad_a[2] = (ayin[k2+1][j2  ][i2  ]-ayin[k2][j2][i2])/(zvals[k2+1]-zvals[k2]);
-
-          ay[k][j][i] = ayin[k2][j2][i2]
-            + dr[0] * grad_a[0]
-            + dr[1] * grad_a[1]
-            + dr[2] * grad_a[2];
-
-          /* interpolate az from input*/
-          grad_a[0] = (azin[k2  ][j2  ][i2+1]-azin[k2][j2][i2])/(xvals[i2+1]-xvals[i2]);
-          grad_a[1] = (azin[k2  ][j2+1][i2  ]-azin[k2][j2][i2])/(yvals[j2+1]-yvals[j2]);
-          grad_a[2] = (azin[k2+1][j2  ][i2  ]-azin[k2][j2][i2])/(zvals[k2+1]-zvals[k2]);
-
-          az[k][j][i] = azin[k2][j2][i2]
-            + dr[0] * grad_a[0]
-            + dr[1] * grad_a[1]
-            + dr[2] * grad_a[2];
-        }
-
-#endif  /* MHD */
-      }
-    }
-  }
-
-#ifdef MHD
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie+1; i++) {
-        pGrid->B1i[k][j][i] = (az[k][j+1][i] - az[k][j][i])/pGrid->dx2 -
-          (ay[k+1][j][i] - ay[k][j][i])/pGrid->dx3;
-      }
-    }
-  }
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je+1; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B2i[k][j][i] = (ax[k+1][j][i] - ax[k][j][i])/pGrid->dx3 -
-          (az[k][j][i+1] - az[k][j][i])/pGrid->dx1;
-      }
-    }
-  }
-
-  ku = (ke > ks) ? ke+1 : ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B3i[k][j][i] = (ay[k][j][i+1] - ay[k][j][i])/pGrid->dx1 -
-          (ax[k][j+1][i] - ax[k][j][i])/pGrid->dx2;
-      }
-    }
-  }
-#endif
-
-#ifdef MHD
-  /* Normalize the RMS magnitude of B */
-  Real rmsB = 0.0;
-  int cnt = 0;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x1f = x1 - 0.5*pGrid->dx1;
-        x2f = x2 - 0.5*pGrid->dx2;
-        x3f = (pGrid->Nx[2] > 1) ? x3 - 0.5*pGrid->dx3 : 0.0;
-
-        r = sqrt(x1f*x1f + x2f*x2f + x3f*x3f);
-
-        if (r <= r_cloud) {
-          rmsB += SQR(pGrid->B1i[k][j][i])
-                  + SQR(pGrid->B2i[k][j][i])
-                  + SQR(pGrid->B3i[k][j][i]);
-          cnt += 1;
-        }
-      }
-    }
-  }
-  printf("[beta orig]: %e\n", sqrt(rmsB/cnt));
-  rmsB = 9.147912e+02; //for 32 5.752040e+02; // For 16 cells per cloud radius!  3.430934e+02;//sqrt(rmsB / cnt);
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie+1; i++) {
-        pGrid->B1i[k][j][i] *= sqrt(2.0 * Gamma_1 / betain) / rmsB;
-      }
-    }
-  }
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je+1; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B2i[k][j][i] *= sqrt(2.0 * Gamma_1 / betain) / rmsB;
-      }
-    }
-  }
-
-  ku = (ke > ks) ? ke+1 : ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B3i[k][j][i] *= sqrt(2.0 * Gamma_1 / betain) / rmsB;
-      }
-    }
-  }
-#endif
-
-  /* cell-centered magnetic field */
-  /*   derive this from interface field to be internally consistent
-       with athena */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-#ifdef MHD
-        pGrid->U[k][j][i].B1c =
-          0.5 * (pGrid->B1i[k][j][i] + pGrid->B1i[k][j][i+1]);
-        pGrid->U[k][j][i].B2c = pGrid->B2i[k][j][i];
-        pGrid->U[k][j][i].B3c = pGrid->B3i[k][j][i];
-
-        if (pGrid->Nx[1] > 1)
-          pGrid->U[k][j][i].B2c =
-            0.5 * (pGrid->B2i[k][j][i] + pGrid->B2i[k][j+1][i]);
-        if (pGrid->Nx[2] > 1)
-          pGrid->U[k][j][i].B3c =
-            0.5 * (pGrid->B3i[k][j][i] + pGrid->B3i[k+1][j][i]);
-
-#ifndef ISOTHERMAL
-        /* add magnetic energy to the total energy */
-        pGrid->U[k][j][i].E +=
-          0.5 * (SQR(pGrid->U[k][j][i].B1c)+SQR(pGrid->U[k][j][i].B2c)+
-                 SQR(pGrid->U[k][j][i].B3c));
-#endif  /* ISOTHERMAL */
-#endif  /* MHD */
-      }
-    }
-  }
-
-
-  free_3d_array((void***) ax);
-  free_3d_array((void***) ay);
-  free_3d_array((void***) az);
-
-  free_1d_array((void*) xvals);
-  free_1d_array((void*) yvals);
-  free_1d_array((void*) zvals);
-
-  free_3d_array((void***) axin);
-  free_3d_array((void***) ayin);
-  free_3d_array((void***) azin);
-
-  return;
-}
-
-
-
 /*==============================================================================
  * BOUNDARY CONDITIONS:
  *
@@ -2324,8 +2051,8 @@ static void bc_ix1(GridS *pGrid)
 
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;
-        pGrid->U[k][j][is-i].B2c = sqrt(2.0 * Gamma_1 / betaout);;
-        pGrid->U[k][j][is-i].B3c = bz;
+        pGrid->U[k][j][is-i].B2c = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+        pGrid->U[k][j][is-i].B3c = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
         if(i == 1)
           pGrid->U[k][j][is-i].B1c = 0.5*pGrid->B1i[k][j][is];
 
