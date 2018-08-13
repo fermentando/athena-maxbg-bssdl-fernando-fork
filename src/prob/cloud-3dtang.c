@@ -22,12 +22,14 @@
 #include "particles/particle.h"
 #endif
 
-#define FOLLOW_CLOUD
+/* -- Comment / uncomment the following lines for extra features -- */
+//#define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
-//#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
-//#define ENERGY_HEATING // Uncomment this line for heating
+#define FLOW_PROFILE            // Changing v(r), rho(r),...
+//#define ENERGY_HEATING        // Heating what is cooled
 /* #define INSTANTCOOL */
+
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 //static void bc_ix2(GridS *pGrid);
@@ -145,10 +147,10 @@ static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
 #endif  /* INSTANTCOOL */
 
+static Real x_shift = 0.0;
 #ifdef FOLLOW_CLOUD
 static Real cloud_mass_weighted_velocity(MeshS *pM);
 static void boost_frame(DomainS *pDomain, Real dv);
-static Real x_shift;
 
 static Real hst_xshift(GridS *pG, int i, int j, int k);
 static Real hst_vflow(GridS *pG, int i, int j, int k);
@@ -379,6 +381,12 @@ void problem(DomainS *pDomain)
           }
 #endif
         }
+
+        // TODO: remove these lines
+        vx  = flow_profile_velocity_x(x1, x2, x3);
+        vy  = flow_profile_velocity_y(x1, x2, x3);
+        vz  = flow_profile_velocity_z(x1, x2, x3);
+
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
         pGrid->U[k][j][i].M1 = rho * vx;
@@ -411,7 +419,8 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].Erad = 0;
 #endif
 
-        /* printf("1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz); */
+        if((j == (js + je)/2) && (k == (ks + ke)/2))
+          printf("1337.1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz);
 
 
       }
@@ -1059,6 +1068,8 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 
   Real d;
 
+  Real x1, x2, x3, cx1;
+
   GridS *pGrid = pDomain->Grid;
   is = pGrid->is; ie = pGrid->ie;
   js = pGrid->js; je = pGrid->je;
@@ -1068,13 +1079,17 @@ static void boost_frame(DomainS *pDomain, Real dvx)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         d = pGrid->U[k][j][i].d;
-
 #ifndef ISOTHERMAL
         pGrid->U[k][j][i].E += 0.5 * d * SQR(dvx);
         pGrid->U[k][j][i].E -= dvx * pGrid->U[k][j][i].M1;
 #endif  /* ISOTHERMAL */
         pGrid->U[k][j][i].M1 -= dvx * d;
 
+        if((k == (ks + ke) / 2) && (j == (js + je)/2) && (i == is)) {
+          cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+          cx1 = x1 + x_shift; // x_shift > 0
+          printf("1339.1339 %e %e\n", cx1, d);
+        }
       }
     }
   }
@@ -1456,6 +1471,8 @@ static void integrate_cooling(GridS *pG)
   // Changed this for tfloor!!
   Real temp;
 
+  Real x1, x2, x3, cx1;
+
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
   is = pG->is;  ie = pG->ie;
@@ -1466,10 +1483,18 @@ static void integrate_cooling(GridS *pG)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
 
+
         W = Cons_to_Prim(&(pG->U[k][j][i]));
 
         /* find temp in keV */
         temp = W.P/W.d;
+
+        if((k == (ks + ke) / 2) && (j == (js + je)/2) && ((i == is) || (i == ie))) {
+          cc_pos(pG,i,j,k,&x1,&x2,&x3);
+          cx1 = x1 + x_shift; // x_shift > 0
+          printf("1333.1333 %e %e\n", cx1, W.d);
+        }
+
 
         /* do not cool above a certain threshold */
         if( (tnotcool > 0) && (temp > tnotcool) ) 
@@ -2302,8 +2327,8 @@ static void bc_ix1(GridS *pGrid)
         vy = flow_profile_velocity_y(cx1, x2, x3);
         vz = flow_profile_velocity_z(cx1, x2, x3);
         rho = flow_profile_density(cx1, x2, x3);
-        /* if((k == ks) && (j == js)) */
-        /*   printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow); */
+        if((k == (ks + ke) / 2) && (j == (js + je)/2))
+          printf("1338.1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow);
 #else
         vx = vflow;
         rho = 1.0;

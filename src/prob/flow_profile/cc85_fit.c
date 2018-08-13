@@ -16,7 +16,7 @@
 static Real r0 = 2.0;
 
 // For velocity profile
-static Real vinf     = 1278.01660112; // km/s
+//static Real vinf     = 1278.01660112; // km/s
 static Real lgvinf;
 static Real v_params[] = {1.53539389, 0.54344914};
 
@@ -36,6 +36,7 @@ Real flow_profile_velocity_norm(Real r) {
 }
 
 Real flow_profile_r(Real x1, Real x2, Real x3) {
+  //return x1 + r0;
   return sqrt((x1 + r0) * (x1 + r0) + x2 * x2 + x3 * x3);
 }
 
@@ -44,12 +45,14 @@ Real flow_profile_velocity_x(Real x1, Real x2, Real x3) {
   return (x1 + r0) / r * flow_profile_velocity_norm(r);
 }
 
-Real flow_profile_velocity_y(Real x1, Real x2, Real x3) { 
+Real flow_profile_velocity_y(Real x1, Real x2, Real x3) {
+  //return 0;
   Real r = flow_profile_r(x1, x2, x3);
   return x2 / r * flow_profile_velocity_norm(r);
 }
 
 Real flow_profile_velocity_z(Real x1, Real x2, Real x3) {
+  //return 0;
   Real r = flow_profile_r(x1, x2, x3);
   return x3 / r * flow_profile_velocity_norm(r);
 }
