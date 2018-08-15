@@ -2065,42 +2065,42 @@ static void bc_ix1(GridS *pGrid)
   } // End loop over grid cells
 
 
-/* #ifdef MHD */
-/* /\* B1i is not set at i=is-nghost *\/ */
-/*   for (k=ks; k<=ke; k++) { */
-/*     for (j=js; j<=je; j++) { */
-/*       for (i=1; i<nghost; i++) { */
-/*         cc_pos(pGrid,i,j,k,&x1,&x2,&x3); */
-/*         x1 -= 0.5 * pGrid->dx1; */
-/*         r = sqrt(x1*x1+x2*x2); */
+#ifdef MHD
+/* B1i is not set at i=is-nghost */
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<nghost; i++) {
+        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        x1 -= 0.5 * pGrid->dx1;
+        r = sqrt(x1*x1+x2*x2);
 
-/*         pGrid->B1i[k][j][i] = 0.0; */
-/*       } */
-/*     } */
-/*   } */
+        pGrid->B1i[k][j][i] = 0.0;
+      }
+    }
+  }
 
-/*   if (pGrid->Nx[1] > 1) ju=je+1; else ju=je; */
-/*   for (k=ks; k<=ke; k++) { */
-/*     for (j=js; j<=ju; j++) { */
-/*       for (i=0; i<nghost; i++) { */
-/*         cc_pos(pGrid,i,j,k,&x1,&x2,&x3); */
-/*         x2 -= 0.5 * pGrid->dx2; */
-/*         r = sqrt(x1*x1+x2*x2); */
+  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=ju; j++) {
+      for (i=0; i<nghost; i++) {
+        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        x2 -= 0.5 * pGrid->dx2;
+        r = sqrt(x1*x1+x2*x2);
 
-/*         pGrid->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout); */
-/*       } */
-/*     } */
-/*   } */
+        pGrid->B2i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+      }
+    }
+  }
 
-/*   if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke; */
-/*   for (k=ks; k<=ku; k++) { */
-/*     for (j=js; j<=je; j++) { */
-/*       for (i=0; i<nghost; i++) { */
-/*         pGrid->B3i[k][j][i] = bz; */
-/*       } */
-/*     } */
-/*   } */
-/* #endif /\* MHD *\/ */
+  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
+  for (k=ks; k<=ku; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=0; i<nghost; i++) {
+        pGrid->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+      }
+    }
+  }
+#endif /* MHD */
 
   return;
 }
