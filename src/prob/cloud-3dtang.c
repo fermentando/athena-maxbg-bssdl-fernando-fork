@@ -474,7 +474,7 @@ void problem(DomainS *pDomain)
       add_term(A, pGrid, theta, phi, alpha, beta, amp);
     }
 
-    Real Bin = sqrt((2.0 * Gamma_1 + dp) / betain);
+    Real Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
 
     for (k=0; k<nx3; k++) {
       for (j=0; j<nx2; j++) {
@@ -538,7 +538,7 @@ void problem(DomainS *pDomain)
         pGrid->B3i[k][j][i] = 0.0;
         if(tangled){
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
+           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
           //printf("12345.12345 %g %g\n", x1, pGrid->B3i[k][j][i]);
