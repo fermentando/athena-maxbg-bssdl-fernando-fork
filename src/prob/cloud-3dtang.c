@@ -195,7 +195,8 @@ void problem(DomainS *pDomain)
   Real x1min, x1max, x2min, x2max, x3min, x3max, tmp;
 
 
-  Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, ncells;
+  Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
+  Real Bin, Bout_z, Bout_y;
   Real bscale;
   int tangled;
 #if (NSCALARS > 0)
@@ -472,9 +473,9 @@ void problem(DomainS *pDomain)
 #endif
 
       add_term(A, pGrid, theta, phi, alpha, beta, amp);
-    }
+    } /* end loop over nterms */ 
 
-    Real Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
+    Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
 
     for (k=0; k<nx3; k++) {
       for (j=0; j<nx2; j++) {
@@ -509,8 +510,8 @@ void problem(DomainS *pDomain)
     }
   }
 
-  Real Bout_z = sqrt(2.0 * (Gamma_1 - dp) / betaout_z);
-  Real Bout_y = sqrt(2.0 * (Gamma_1 - dp) / betaout_y);
+  Bout_z = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+  Bout_y = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
 
   ju = (pGrid->Nx[1] > 1) ? je+1 : je;  //so we don't go beyond array in 2d 
   for (k=ks; k<=ke; k++) {
@@ -588,12 +589,12 @@ void problem(DomainS *pDomain)
 #ifdef MHD
 
 
-  Brms = Bmax = 0.0;
+  /* -- Some checks -- */
+  Brms = Bmax = Bmax_cloud = 0.0;
   ncells = 0.0;
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
-
 
         Bs = (SQR(pGrid->U[k][j][i].B1c) +
               SQR(pGrid->U[k][j][i].B2c) +
@@ -604,6 +605,11 @@ void problem(DomainS *pDomain)
           ncells += 1.0;
         }
         Bmax = MAX(Bmax, Bs);
+
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+        r = sqrt(x1*x1 + x2*x2 + x3*x3);
+        if (r < r_cloud)
+          Bmax_cloud = MAX(Bmax_cloud, Bs);
       }
     }
   }
@@ -620,21 +626,26 @@ void problem(DomainS *pDomain)
   ncells = scal[1];
 
   my_scal[0] = Bmax;
+  my_scal[1] = Bmax_cloud;
 
-  ierr = MPI_Allreduce(&my_scal, &scal, 1, MPI_RL, MPI_MAX, MPI_COMM_WORLD);
+  ierr = MPI_Allreduce(&my_scal, &scal, 2, MPI_RL, MPI_MAX, MPI_COMM_WORLD);
   if (ierr)
     ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
 
   Bmax   = scal[0];
+  Bmax_cloud   = scal[1];
 #endif
 
   Brms = sqrt(Brms/ncells);
   Bmax = sqrt(Bmax);
+  Bmax_cloud = sqrt(Bmax_cloud);
 
-  ath_pout(0, "Brms = %f\tBmax = %f\n", Brms, Bmax);
+  ath_pout(0, "Brms = %f, Bmax = %f, Bmax_cloud = %f, "
+           "beta_rms = %f, beta_max = %f, beta_cloud_max = %f\n",
+           Brms, Bmax, Bmax_cloud,
+           2 * (Gamma_1 + dp) / SQR(Brms),
+           2 * (Gamma_1 + dp) / SQR(Bmax), 2 * (Gamma_1 + dp) / SQR(Bmax_cloud));
   /* ath_error("Brms = %f\tBmax = %f\n", Brms, Bmax); */
-
-
 
 
 #endif //MHD
