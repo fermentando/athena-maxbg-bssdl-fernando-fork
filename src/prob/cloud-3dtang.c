@@ -183,7 +183,7 @@ void problem(DomainS *pDomain)
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
   Real rho, vx, vy, vz, v_turb, v_rot;
-  Real fact;
+  Real fact, l_cloud;
 
   int iseed;
   Real3Vect ***A;
@@ -226,6 +226,7 @@ void problem(DomainS *pDomain)
   v_rot  = par_getd_def("problem", "v_rot",  0.0);
 
   r_cloud = par_getd_def("problem", "r_cloud", 0.25);
+  l_cloud = par_getd_def("problem", "l_cloud", 0.0);
   dr = par_getd_def("problem", "dr", 0.0);
 
   /*Real tfloor    = 1.0e-2 / drat;
@@ -333,7 +334,8 @@ void problem(DomainS *pDomain)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        r = sqrt(x1*x1+x2*x2+x3*x3);
+        //r = sqrt(x1*x1+x2*x2+x3*x3);
+        r = sqrt(pow(MIN(MAX(x1 - l_cloud, 0), x1), 2) + x2*x2 + x3*x3);
 
 #ifdef FLOW_PROFILE
         rho = flow_profile_density(x1, x2, x3);
@@ -356,6 +358,7 @@ void problem(DomainS *pDomain)
         dye = 0.0;
 #endif
 
+        /* Initialize cloud */
         if (r < r_cloud) {
           if(iprint == 0) {
             ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n", sqrt(drat) * r_cloud / vx,
