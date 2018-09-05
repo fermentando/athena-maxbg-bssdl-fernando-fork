@@ -328,7 +328,7 @@ void problem(DomainS *pDomain)
   char* fn_vx;
   Real *cloud_dat_rho, *cloud_dat_vx;
   FILE* fp_rho = NULL; FILE* fp_vx = NULL;
-  if(fn_rho[0] != "") {
+  if((char)fn_rho[0]) {
 #ifdef FLOW_PROFILE
     ath_error("FLOW_PROFILE and grid loading not implemented yet.");
 #endif
