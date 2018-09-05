@@ -194,7 +194,6 @@ void problem(DomainS *pDomain)
 
   Real x1min, x1max, x2min, x2max, x3min, x3max, tmp;
 
-
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
   Real bscale;
@@ -321,6 +320,42 @@ void problem(DomainS *pDomain)
   nan_dump_count = 0;
 #endif
 
+  /* Initialize grid loading */
+  int Nx, Ny, Nz, ndim_file;
+  int ii, jj, kk;
+  Nx = pDomain->Nx[0]; Ny = pDomain->Nx[1]; Nz = pDomain->Nx[2];
+  char* fn_rho = par_gets_def("problem", "load_grid_rho", "");
+  char* fn_vx;
+  Real *cloud_dat_rho, *cloud_dat_vx;
+  FILE* fp_rho = NULL; FILE* fp_vx = NULL;
+  if(fn_rho[0] != "") {
+#ifdef FLOW_PROFILE
+    ath_error("FLOW_PROFILE and grid loading not implemented yet.");
+#endif
+    fn_vx = par_gets("problem", "load_grid_vx");
+    ndim_file = par_geti("problem", "load_grid_ndim");
+    ath_pout(0, "Loading grid `%s` / `%s` with %d cells (grid cells: [%d,%d,%d])\n",
+             fn_rho, fn_vx, ndim_file, Nx, Ny, Nz);
+    if((ndim_file > Nx) || (ndim_file > Ny) || (ndim_file > Nz))
+      ath_error("[read_grid]: Grid in file larger than ATHENA grid (%d versus %d, %d, %d).\n",
+                ndim_file, Nx, Ny, Nz);
+    fp_rho = fopen(fn_rho, "r");
+    if(fp_rho == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_rho);
+    fp_vx = fopen(fn_vx, "r");
+    if(fp_vx == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_vx);
+    cloud_dat_rho = (Real*)malloc(sizeof(Real) * ndim_file * ndim_file * ndim_file);
+    if(cloud_dat_rho == NULL) ath_error("[read_grid] Error allocating memory for rho.");
+    fread(cloud_dat_rho, sizeof(Real), ndim_file * ndim_file * ndim_file, fp_rho);
+    fread(&rho, sizeof(Real), 1, fp_rho);
+    if(!feof(fp_rho)) ath_error("[read_grid] Not eof for rho.");
+    cloud_dat_vx = (Real*)malloc(sizeof(Real) * ndim_file * ndim_file * ndim_file);
+    if(cloud_dat_vx == NULL) ath_error("[read_grid] Error allocating memory for vx.");
+    fread(cloud_dat_vx, sizeof(Real), ndim_file * ndim_file * ndim_file, fp_vx);
+    fread(&vx, sizeof(Real), 1, fp_vx);
+    if(!feof(fp_vx)) ath_error("[read_grid] Not eof for vx.");
+  }   /* end grid loading */
+
+
   is = pGrid->is; ie = pGrid->ie;
   js = pGrid->js; je = pGrid->je;
   ks = pGrid->ks; ke = pGrid->ke;
@@ -330,6 +365,7 @@ void problem(DomainS *pDomain)
   int iprint = 0;
   vx = vy = vz = 0.0;
 
+  /* Begin cell loop */
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
@@ -359,37 +395,56 @@ void problem(DomainS *pDomain)
 #endif
 
         /* Initialize cloud */
-        if (r < r_cloud) {
-          if(iprint == 0) {
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n", sqrt(drat) * r_cloud / vx,
-                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
-            iprint = 1;
-          }
-
-          vx   = -(x2/r_cloud) * v_rot;
-          vy   =  (x1/r_cloud) * v_rot;
-
-          rho  *= drat;
-
-#if (NSCALARS > 0)
-          dye = drat ; //1.0;
-#endif
-        }
-        if (dr > 0.0){
-#ifdef FLOW_PROFILE
-          ath_error("dr > 0 with flow profile not (yet) supported.\n");
-#endif
-          rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
-          vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
-          vx   += -(x2/r_cloud) * v_rot;
-          vy   =  (x1/r_cloud) * v_rot;
-#if (NSCALARS > 0)
-          // This line means that the dye does not follow the density in the boundary (dr) region
-          if(r < r_cloud){ 
+        if(fp_rho != NULL) { // read grid from file
+          ii = (int)(x1 / pGrid->dx1) + ndim_file / 2; //i - ((Nx - ndim_file) / 2);
+          jj = (int)(x2 / pGrid->dx2) + ndim_file / 2; //j - ((Ny - ndim_file) / 2);
+          kk = (int)(x3 / pGrid->dx3) + ndim_file / 2; //k - ((Nz - ndim_file) / 2);
+          if((ii > 0) && (ii < ndim_file) &&
+             (jj > 0) && (jj < ndim_file) &&
+             (kk > 0) && (kk < ndim_file)) {
+            rho = cloud_dat_rho[kk * ndim_file * ndim_file + jj * ndim_file + ii];
+            vx  =  cloud_dat_vx[kk * ndim_file * ndim_file + jj * ndim_file + ii];
+            if(rho < 0) ath_error("Found rho < 0 in grid file!");
+            rho = rho * drat;
             dye = rho;
+            rho += 1.0; // also add wind density
+            vx  = vx * vflow;
           }
+        } else { // do not read grid from file
+          if (r < r_cloud) {
+#ifdef FLOW_PROFILE
+            if(iprint == 0) {
+              ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+                       sqrt(drat) * r_cloud / vx,
+                       tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
+              iprint = 1;
+            }
 #endif
+            vx   = -(x2/r_cloud) * v_rot;
+            vy   =  (x1/r_cloud) * v_rot;
+
+            rho  *= drat;
+#if (NSCALARS > 0)
+            dye = drat ; //1.0;
+#endif
+          }
+          if (dr > 0.0){
+#ifdef FLOW_PROFILE
+            ath_error("dr > 0 with flow profile not (yet) supported.\n");
+#endif
+            rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
+            vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
+            vx   += -(x2/r_cloud) * v_rot;
+            vy   =  (x1/r_cloud) * v_rot;
+#if (NSCALARS > 0)
+            // This line means that the dye does not follow the density in the boundary (dr) region
+            if(r < r_cloud){ 
+              dye = rho;
+            }
+#endif
+          }
         }
+
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
         pGrid->U[k][j][i].M1 = rho * vx;
@@ -427,7 +482,15 @@ void problem(DomainS *pDomain)
 
       }
     }
+  } /* end grid loops */
+
+  if(fp_rho != NULL) {
+    fclose(fp_rho);
+    fclose(fp_vx);
+    free(cloud_dat_rho);
+    free(cloud_dat_vx);
   }
+
   if(tangled){
     A = (Real3Vect***) calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
 
@@ -439,7 +502,6 @@ void problem(DomainS *pDomain)
         }
       }
     }
-
 
 
     nterms = par_getd_def("problem", "nterms",10);
@@ -545,7 +607,6 @@ void problem(DomainS *pDomain)
            bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
-          //printf("12345.12345 %g %g\n", x1, pGrid->B3i[k][j][i]);
         }
         else{
           pGrid->B3i[k][j][i] = Bout_z;
