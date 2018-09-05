@@ -405,7 +405,7 @@ void problem(DomainS *pDomain)
             rho = cloud_dat_rho[kk * ndim_file * ndim_file + jj * ndim_file + ii];
             vx  =  cloud_dat_vx[kk * ndim_file * ndim_file + jj * ndim_file + ii];
             if(rho < 0) ath_error("Found rho < 0 in grid file!");
-            rho = rho * drat;
+            rho = rho * (drat - 1.0);
             dye = rho;
             rho += 1.0; // also add wind density
             vx  = vx * vflow;
