@@ -1057,6 +1057,13 @@ void Userwork_in_loop(MeshS *pM)
     dvx = 0.0;
   }
 
+  /*  
+  if(dvx > 0.01) {
+    dvx = 0.01;
+    ath_pout(0,"[bad dvx:] %0.15e setting to 0.01\n",dvx);
+  }
+  */
+
   if(dvx > 0.0){
     expt = floor(log10(dvx));
     newdvx = dvx / pow(10, expt);
@@ -1064,14 +1071,14 @@ void Userwork_in_loop(MeshS *pM)
     newdvx = newdvx * pow(10.0, expt);
     dvx = newdvx;
   }
-  ath_pout(0,"[dvx:]  %0.15e [vflow:] %.15e\n",dvx,vflow);
 
 #ifndef FLOW_PROFILE
-  if(vflow - dvx < 0.0){ // does not allow vflow < 0
+  if(vflow - dvx < 0.00){ // does not allow vflow < 0
     dvx = vflow;
   }
 #endif /* not FLOW_PROFILE */
-    vflow -= dvx;
+  ath_pout(0,"[dvx:]  %0.15e [vflow:] %.15e\n",dvx,vflow);
+  vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
@@ -1183,8 +1190,8 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real x1, x2, x3;
-  int V=0; //verbose off
-  int NO = 2;
+  int V=0; //verbose off = 0
+  int NO = 10;
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
   int npress=0,   nrho=0,   nv=0,   nfloor; /* floor count */
@@ -1290,9 +1297,23 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
           nmag++;
           if(V && nmag < NO) printf("bad mag %e R %e  %e %e %e  %d %d %d %e %e %e %e %e\n",beta, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta, ME);
           if(fix){
+	    // Old fix --> via new T
             rho  = MAX(rho, sqrt(betafloor * ME));
             temp = betafloor * ME / rho;
             temp = MAX(temp,tfloor);
+
+	    /*
+	    // New fix --> via new B 
+	    temp = press / rho; // Otherwise beta sometimes < 0
+	    beta = press / ME; 
+	    if(beta < 0)
+	      ath_error("[floor_beta]: beta < 0 (%g), rho = %g, temp = %g, press = %g, ME = %g\n", beta, rho, temp, press, ME);
+	    pGrid->U[k][j][i].B1c *= sqrt(beta / betafloor);
+	    pGrid->U[k][j][i].B2c *= sqrt(beta / betafloor);
+	    pGrid->U[k][j][i].B3c *= sqrt(beta / betafloor);
+	    ME *= beta / betafloor;
+	    */
+
             if(V && nmag < NO) printf("bad magf %e R %e  %e %e %e  %d %d %d %e %e %e %e %e\n",beta, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta,ME);
           }
         }
