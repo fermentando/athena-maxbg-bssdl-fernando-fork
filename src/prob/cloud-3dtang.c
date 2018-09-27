@@ -467,7 +467,7 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx)+SQR(vy)+SQR(vz));
-#endif  /* ISOTHERMAL */
+#endif  /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][i].s[0] = dye;
@@ -1190,8 +1190,8 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real x1, x2, x3;
-  int V=0; //verbose off = 0
-  int NO = 10;
+  int V=1; //verbose off = 0
+  int NO = 5;
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
   int npress=0,   nrho=0,   nv=0,   nfloor; /* floor count */
@@ -2091,112 +2091,118 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
  *
  *----------------------------------------------------------------------------*/
 
-static void bc_ix1(GridS *pGrid)
+static void bc_ix1(GridS *pG)
 {
-  int is = pGrid->is;
-  int js = pGrid->js, je = pGrid->je;
-  int ks = pGrid->ks, ke = pGrid->ke;
+  int is = pG->is;
+  int js = pG->js, je = pG->je;
+  int ks = pG->ks, ke = pG->ke;
   int i,j,k;
-  Real vx, vy, vz, rho, cx1;
-  Real x1, x2, x3, r;
+  Real pressis;        // values in the domain
+  Real rhowind, presswind;        // values on the boundary
+  Real vx, rho, press; // current values
+  Real x1, x2, x3, r, cx1;
+  Real s, Bt, Eb;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
 #endif
 
-  vx = vy = vz = 0;
+  rhowind = 1.0;
+  presswind = Gamma_1 + dp;
+
+
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
-        /*
-         This line was uncommented before...which seems to change the rest of
-         the function. Seems better that way, though...?
-         *but* caused MHD error!
-        */
-        // pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
-
 #if (NSCALARS > 0)
-        pGrid->U[k][j][is - i].s[0] = 0.0;
+        pG->U[k][j][is - i].s[0] = 0.0;
 #endif
 
-#ifdef FLOW_PROFILE
-        cc_pos(pGrid,is - i,j,k,&x1,&x2,&x3);
-        cx1 = x1 + x_shift; // x_shift > 0
-        vx = flow_profile_velocity_x(cx1, x2, x3) + vflow; // v_flow < 0
-        vy = flow_profile_velocity_y(cx1, x2, x3);
-        vz = flow_profile_velocity_z(cx1, x2, x3);
-        rho = flow_profile_density(cx1, x2, x3);
-        /* if((k == ks) && (j == js)) */
-        /*   printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow); */
-#else
-        vx = vflow;
-        rho = 1.0;
-#endif
-        pGrid->U[k][j][is-i].d  = rho;
-        pGrid->U[k][j][is-i].M1 = rho * vx;
-        pGrid->U[k][j][is-i].M2 = rho * vy;
-        pGrid->U[k][j][is-i].M3 = rho * vz;
+        /* Linear interpolation between wished and last values */
+        s = (nghost - i) / ((Real)nghost);
+        /* if(j == js && k == ks) */
+        /*   printf("%e\n", s); */
+        rho = rhowind + (pG->U[k][j][is].d  - rhowind) * s;
+        pG->U[k][j][is-i].d  = rho;
+        vx = vflow + (pG->U[k][j][is].M1 / pG->U[k][j][is].d - vflow) * s;
+        pG->U[k][j][is-i].M1 = vx * rho;
+        pG->U[k][j][is-i].M2 = pG->U[k][j][is].M2 / pG->U[k][j][is].d * s * rho;
+        pG->U[k][j][is-i].M3 = pG->U[k][j][is].M3 / pG->U[k][j][is].d * s * rho;
 
 #ifndef ISOTHERMAL
-#ifdef FLOW_PROFILE
-        pGrid->U[k][j][is-i].E = flow_profile_pressure(cx1, x2, x3) / Gamma_1;
-#else
-        pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
-#endif /* FLOW_PROFILE */
-        pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
-#endif  /* ISOTHERMAL */
+        /* Calculate pressure in domain for interpolation */
+        pressis = pG->U[k][j][is].E - 0.5*(SQR(pG->U[k][j][is].M1)
+                                           + SQR(pG->U[k][j][is].M2)
+                                           + SQR(pG->U[k][j][is].M3))/pG->U[k][j][is].d;
 
 #ifdef MHD
-        pGrid->U[k][j][is-i].B1c = 0.0;
-        pGrid->U[k][j][is-i].B2c = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-        pGrid->U[k][j][is-i].B3c = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-        if(i == 1)
-          pGrid->U[k][j][is-i].B1c = 0.5*pGrid->B1i[k][j][is];
+        pressis -= 0.5*(SQR(pG->U[k][j][is].B1c)
+                        + SQR(pG->U[k][j][is].B2c)
+                        + SQR(pG->U[k][j][is].B3c));
+#endif /* MHD */
+        pressis *= Gamma_1;
+        pressis = MAX(pressis,TINY_NUMBER);
 
-        pGrid->U[k][j][is-i].E  += 0.5*(SQR(pGrid->U[k][j][is-i].B1c)
-                                        +SQR(pGrid->U[k][j][is-i].B2c)
-                                        +SQR(pGrid->U[k][j][is-i].B3c));
+        press = presswind + (presswind - pressis) * s;
+        press = MAX(press,TINY_NUMBER);
+        pG->U[k][j][is-i].E = press / Gamma_1;
+
+        pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\
+                                      SQR(pG->U[k][j][is-i].M2) +       \
+                                      SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
+
+#endif  /* not ISOTHERMAL */
+#ifdef MHD
+        /* Set magnetic field const...?  */
+        /* pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s; */
+        /* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y); */
+        /* pG->U[k][j][is-i].B2c = Bt + (pG->U[k][j][is-i].B2c - Bt) * s; */
+        /* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); */
+        /* pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is-i].B3c - Bt) * s; */
+        pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s;
+        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+        pG->U[k][j][is-i].B2c = Bt;
+        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        pG->U[k][j][is-i].B3c = Bt;
+
+
+        pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c)
+                                     +SQR(pG->U[k][j][is-i].B2c)
+                                     +SQR(pG->U[k][j][is-i].B3c));
+
 #endif
       }
     }
   } // End loop over grid cells
 
-
 #ifdef MHD
-/* B1i is not set at i=is-nghost */
+  /* B1i is not set at i=is-nghost */
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<nghost; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x1 -= 0.5 * pGrid->dx1;
-        r = sqrt(x1*x1+x2*x2);
-
-        pGrid->B1i[k][j][i] = 0.0;
+        pG->B1i[k][j][i] = 0.0;
       }
     }
   }
 
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
+  if (pG->Nx[1] > 1) ju=je+1; else ju=je;
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=ju; j++) {
       for (i=0; i<nghost; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x2 -= 0.5 * pGrid->dx2;
-        r = sqrt(x1*x1+x2*x2);
-
-        pGrid->B2i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+        pG->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout_y);
       }
     }
   }
 
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
+  if (pG->Nx[2] > 1) ku=ke+1; else ku=ke;
   for (k=ks; k<=ku; k++) {
     for (j=js; j<=je; j++) {
       for (i=0; i<nghost; i++) {
-        pGrid->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        pG->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
       }
     }
   }
 #endif /* MHD */
+
 
   return;
 }
@@ -2207,7 +2213,7 @@ static void bc_ox1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
-  int V=0;
+  int V=1;
   int NO=10;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
@@ -2216,13 +2222,15 @@ static void bc_ox1(GridS *pGrid)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
+
         pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
+
         if(pGrid->U[k][j][ie+i].M1 < 0.0){
-	  if(V && (NO > 0)) {
-	    printf("bc_ox1 %d %d %d %e\n",
-		   i, j, k, pGrid->U[k][j][ie+i].M1);
-	    NO--;
-	  }
+          if(V && (NO > 0)) {
+            printf("bc_ox1 %d %d %d %e\n",
+                   i, j, k, pGrid->U[k][j][ie+i].M1);
+            NO--;
+          }
           pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d;
           pGrid->U[k][j][ie+i].M1 = 0.0;
         }
