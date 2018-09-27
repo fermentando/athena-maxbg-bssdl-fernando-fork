@@ -28,8 +28,8 @@
 //#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
 //#define ENERGY_HEATING // Uncomment this line for heating
 /* #define INSTANTCOOL */
-static void bc_ix1(GridS *pGrid);
-static void bc_ox1(GridS *pGrid);
+/* static void bc_ix1(GridS *pGrid); */
+/* static void bc_ox1(GridS *pGrid); */
 //static void bc_ix2(GridS *pGrid);
 //static void bc_ox2(GridS *pGrid);
 //static void bc_ix3(GridS *pGrid);
@@ -719,19 +719,20 @@ void problem(DomainS *pDomain)
   check_div_b(pGrid);
 #endif //MHD
 
-  if (pDomain->Disp[0] == 0)
-    bvals_mhd_fun(pDomain, left_x1,  bc_ix1);
+  
+  /* if (pDomain->Disp[0] == 0) */
+  /*   bvals_mhd_fun(pDomain, left_x1,  bc_ix1); */
   /* if (pDomain->Disp[1] == 0) */
   /*   bvals_mhd_fun(pDomain, left_x2,  bc_ix2); */
   /* if (pDomain->Disp[2] == 0) */
   /*   bvals_mhd_fun(pDomain, left_x3,  bc_ix3); */
-  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
-    bvals_mhd_fun(pDomain, right_x1, bc_ox1);
+  /* if (pDomain->MaxX[0] == pDomain->RootMaxX[0]) */
+  /*   bvals_mhd_fun(pDomain, right_x1, bc_ox1); */
   /* if (pDomain->MaxX[1] == pDomain->RootMaxX[1]) */
   /*   bvals_mhd_fun(pDomain, right_x2, bc_ox2); */
   /* if (pDomain->MaxX[2] == pDomain->RootMaxX[2]) */
   /*   bvals_mhd_fun(pDomain, right_x3, bc_ox3); */
-
+  
 
   /* seed a perturbation */
    for (k=ks; k<=ke; k++) {
@@ -784,14 +785,14 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
   for (nl=0; nl<(pM->NLevels); nl++) {
     for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++) {
-      if (pM->Domain[nl][nd].Disp[0] == 0)
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1,  bc_ix1);
+      /* if (pM->Domain[nl][nd].Disp[0] == 0) */
+        //bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1,  bc_ix1);
        /* if (pM->Domain[nl][nd].Disp[1] == 0) */
        /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  bc_ix2); */
        /* if (pM->Domain[nl][nd].Disp[2] == 0) */
        /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  bc_ix3); */
-       if (pM->Domain[nl][nd].MaxX[0] == pM->Domain[nl][nd].RootMaxX[0])
-         bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, bc_ox1);
+        //       if (pM->Domain[nl][nd].MaxX[0] == pM->Domain[nl][nd].RootMaxX[0])
+        //         bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, bc_ox1);
        /* if (pM->Domain[nl][nd].MaxX[1] == pM->Domain[nl][nd].RootMaxX[1]) */
        /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, bc_ox2); */
        /* if (pM->Domain[nl][nd].MaxX[2] == pM->Domain[nl][nd].RootMaxX[2]) */
@@ -2091,184 +2092,186 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
  *
  *----------------------------------------------------------------------------*/
 
-static void bc_ix1(GridS *pG)
-{
-  int is = pG->is;
-  int js = pG->js, je = pG->je;
-  int ks = pG->ks, ke = pG->ke;
-  int i,j,k;
-  Real pressis;        // values in the domain
-  Real rhowind, presswind;        // values on the boundary
-  Real vx, rho, press; // current values
-  Real x1, x2, x3, r, cx1;
-  Real s, Bt, Eb;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-#endif
+/* static void bc_ix1(GridS *pG) */
+/* { */
+/*   int is = pG->is; */
+/*   int js = pG->js, je = pG->je; */
+/*   int ks = pG->ks, ke = pG->ke; */
+/*   int i,j,k; */
+/*   Real pressis;        // values in the domain */
+/*   Real rhowind, presswind;        // values on the boundary */
+/*   Real vx, rho, press; // current values */
+/*   Real x1, x2, x3, r, cx1; */
+/*   Real s, Bt, Eb; */
+/* #ifdef MHD */
+/*   int ju, ku; /\* j-upper, k-upper *\/ */
+/* #endif */
 
-  rhowind = 1.0;
-  presswind = Gamma_1 + dp;
-
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-#if (NSCALARS > 0)
-        pG->U[k][j][is - i].s[0] = 0.0;
-#endif
-
-        /* Linear interpolation between wished and last values */
-        s = (nghost - i) / ((Real)nghost);
-        /* if(j == js && k == ks) */
-        /*   printf("%e\n", s); */
-        rho = rhowind + (pG->U[k][j][is].d  - rhowind) * s;
-        pG->U[k][j][is-i].d  = rho;
-        vx = vflow + (pG->U[k][j][is].M1 / pG->U[k][j][is].d - vflow) * s;
-        pG->U[k][j][is-i].M1 = vx * rho;
-        pG->U[k][j][is-i].M2 = pG->U[k][j][is].M2 / pG->U[k][j][is].d * s * rho;
-        pG->U[k][j][is-i].M3 = pG->U[k][j][is].M3 / pG->U[k][j][is].d * s * rho;
-
-#ifndef ISOTHERMAL
-        /* Calculate pressure in domain for interpolation */
-        pressis = pG->U[k][j][is].E - 0.5*(SQR(pG->U[k][j][is].M1)
-                                           + SQR(pG->U[k][j][is].M2)
-                                           + SQR(pG->U[k][j][is].M3))/pG->U[k][j][is].d;
-
-#ifdef MHD
-        pressis -= 0.5*(SQR(pG->U[k][j][is].B1c)
-                        + SQR(pG->U[k][j][is].B2c)
-                        + SQR(pG->U[k][j][is].B3c));
-#endif /* MHD */
-        pressis *= Gamma_1;
-        pressis = MAX(pressis,TINY_NUMBER);
-
-        press = presswind + (presswind - pressis) * s;
-        press = MAX(press,TINY_NUMBER);
-        pG->U[k][j][is-i].E = press / Gamma_1;
-
-        pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\
-                                      SQR(pG->U[k][j][is-i].M2) +       \
-                                      SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
-
-#endif  /* not ISOTHERMAL */
-#ifdef MHD
-        /* Set magnetic field const...?  */
-        /* pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s; */
-        /* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y); */
-        /* pG->U[k][j][is-i].B2c = Bt + (pG->U[k][j][is-i].B2c - Bt) * s; */
-        /* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); */
-        /* pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is-i].B3c - Bt) * s; */
-        pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s;
-        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-        pG->U[k][j][is-i].B2c = Bt;
-        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-        pG->U[k][j][is-i].B3c = Bt;
+/*   rhowind = 1.0; */
+/*   presswind = Gamma_1 + dp; */
 
 
-        pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c)
-                                     +SQR(pG->U[k][j][is-i].B2c)
-                                     +SQR(pG->U[k][j][is-i].B3c));
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+/* #if (NSCALARS > 0) */
+/*         pG->U[k][j][is - i].s[0] = 0.0; */
+/* #endif */
 
-#endif
-      }
-    }
-  } // End loop over grid cells
+/*         /\* Linear interpolation between wished and last values *\/ */
+/*         s = (nghost - i) / ((Real)nghost); */
+/*         rho = rhowind + (pG->U[k][j][is].d  - rhowind) * s; */
+/*         pG->U[k][j][is-i].d  = rho; */
+/*         vx = vflow + (pG->U[k][j][is].M1 / pG->U[k][j][is].d - vflow) * s; */
+/*         pG->U[k][j][is-i].M1 = vx * rho; */
+/*         pG->U[k][j][is-i].M2 = pG->U[k][j][is].M2 / pG->U[k][j][is].d * s * rho; */
+/*         pG->U[k][j][is-i].M3 = pG->U[k][j][is].M3 / pG->U[k][j][is].d * s * rho; */
 
-#ifdef MHD
-  /* B1i is not set at i=is-nghost */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<nghost; i++) {
-        pG->B1i[k][j][i] = 0.0;
-      }
-    }
-  }
+/* #ifndef ISOTHERMAL */
+/*         /\* Calculate pressure in domain for interpolation *\/ */
+/*         pressis = pG->U[k][j][is].E - 0.5*(SQR(pG->U[k][j][is].M1)+ \ */
+/*                                            SQR(pG->U[k][j][is].M2) +  \ */
+/*                                            SQR(pG->U[k][j][is].M3))/pG->U[k][j][is].d; */
 
-  if (pG->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=0; i<nghost; i++) {
-        pG->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout_y);
-      }
-    }
-  }
+/* #ifdef MHD */
+/*         pressis -= 0.5*(SQR(pG->U[k][j][is].B1c) */
+/*                         + SQR(pG->U[k][j][is].B2c) */
+/*                         + SQR(pG->U[k][j][is].B3c)); */
+/* #endif /\* MHD *\/ */
+/*         pressis *= Gamma_1; */
+/*         //pressis = MAX(pressis,TINY_NUMBER); */
 
-  if (pG->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=0; i<nghost; i++) {
-        pG->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-      }
-    }
-  }
-#endif /* MHD */
+/*         press = presswind; // + (presswind - pressis) * s; */
+/*         //press = MAX(press,TINY_NUMBER); */
+/*         pG->U[k][j][is-i].E = press / Gamma_1; */
+
+/*         pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\ */
+/*                                       SQR(pG->U[k][j][is-i].M2) +       \ */
+/*                                       SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d; */
+
+/*         if(j == js && k == ks) */
+/*           printf("%g, P = %g, V = %g\n", s,pressis / press, vx / vflow); */
 
 
-  return;
-}
+/* #endif  /\* not ISOTHERMAL *\/ */
+/* #ifdef MHD */
+/*         /\* Set magnetic field const...?  *\/ */
+/*         /\* pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s; *\/ */
+/*         /\* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y); *\/ */
+/*         /\* pG->U[k][j][is-i].B2c = Bt + (pG->U[k][j][is-i].B2c - Bt) * s; *\/ */
+/*         /\* Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); *\/ */
+/*         /\* pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is-i].B3c - Bt) * s; *\/ */
+/*         pG->U[k][j][is-i].B1c = 0.0;//     + pG->U[k][j][is-i+1].B1c * s; */
+/*         Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y); */
+/*         pG->U[k][j][is-i].B2c = Bt; */
+/*         Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); */
+/*         pG->U[k][j][is-i].B3c = Bt; */
 
-static void bc_ox1(GridS *pGrid)
-{
-  int ie = pGrid->ie;
-  int js = pGrid->js, je = pGrid->je;
-  int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k;
-  int V=1;
-  int NO=10;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-#endif
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
+/*         pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c) */
+/*                                      +SQR(pG->U[k][j][is-i].B2c) */
+/*                                      +SQR(pG->U[k][j][is-i].B3c)); */
 
-        pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
+/* #endif */
+/*       } */
+/*     } */
+/*   } // End loop over grid cells */
 
-        if(pGrid->U[k][j][ie+i].M1 < 0.0){
-          if(V && (NO > 0)) {
-            printf("bc_ox1 %d %d %d %e\n",
-                   i, j, k, pGrid->U[k][j][ie+i].M1);
-            NO--;
-          }
-          pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d;
-          pGrid->U[k][j][ie+i].M1 = 0.0;
-        }
-      }
-    }
-  }
+/* #ifdef MHD */
+/*   /\* B1i is not set at i=is-nghost *\/ */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<nghost; i++) { */
+/*         pG->B1i[k][j][i] = 0.0; */
+/*       } */
+/*     } */
+/*   } */
 
-#ifdef MHD
-/* i=ie+1 is not a boundary condition for the interface field B1i */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=2; i<=nghost; i++) {
-        pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][ie];
-      }
-    }
-  }
+/*   if (pG->Nx[1] > 1) ju=je+1; else ju=je; */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=ju; j++) { */
+/*       for (i=0; i<nghost; i++) { */
+/*         pG->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout_y); */
+/*       } */
+/*     } */
+/*   } */
 
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][ie];
-      }
-    }
-  }
+/*   if (pG->Nx[2] > 1) ku=ke+1; else ku=ke; */
+/*   for (k=ks; k<=ku; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=0; i<nghost; i++) { */
+/*         pG->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); */
+/*       } */
+/*     } */
+/*   } */
+/* #endif /\* MHD *\/ */
 
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][ie];
-      }
-    }
-  }
-#endif /* MHD */
 
-  return;
-}
+/*   return; */
+/* } */
+
+/* static void bc_ox1(GridS *pGrid) */
+/* { */
+/*   int ie = pGrid->ie; */
+/*   int js = pGrid->js, je = pGrid->je; */
+/*   int ks = pGrid->ks, ke = pGrid->ke; */
+/*   int i,j,k; */
+/*   int V=1; */
+/*   int NO=10; */
+/* #ifdef MHD */
+/*   int ju, ku; /\* j-upper, k-upper *\/ */
+/* #endif */
+
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+
+/*         pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie]; */
+
+/*         if(pGrid->U[k][j][ie+i].M1 < 0.0){ */
+/*           if(V && (NO > 0)) { */
+/*             printf("bc_ox1 %d %d %d %e\n", */
+/*                    i, j, k, pGrid->U[k][j][ie+i].M1); */
+/*             NO--; */
+/*           } */
+/*           pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d; */
+/*           pGrid->U[k][j][ie+i].M1 = 0.0; */
+/*         } */
+/*       } */
+/*     } */
+/*   } */
+
+/* #ifdef MHD */
+/* /\* i=ie+1 is not a boundary condition for the interface field B1i *\/ */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=2; i<=nghost; i++) { */
+/*         pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][ie]; */
+/*       } */
+/*     } */
+/*   } */
+
+/*   if (pGrid->Nx[1] > 1) ju=je+1; else ju=je; */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=ju; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+/*         pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][ie]; */
+/*       } */
+/*     } */
+/*   } */
+
+/*   if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke; */
+/*   for (k=ks; k<=ku; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+/*         pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][ie]; */
+/*       } */
+/*     } */
+/*   } */
+/* #endif /\* MHD *\/ */
+
+/*   return; */
+/* } */
 
 
 void add_term(Real3Vect ***A, GridS *pG,
