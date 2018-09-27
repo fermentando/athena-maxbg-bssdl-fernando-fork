@@ -2112,7 +2112,7 @@ static void bc_ix1(GridS *pGrid)
          the function. Seems better that way, though...?
          *but* caused MHD error!
         */
-        //pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+        // pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][is - i].s[0] = 0.0;
@@ -2207,6 +2207,8 @@ static void bc_ox1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
+  int V=0;
+  int NO=10;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
 #endif
@@ -2216,6 +2218,11 @@ static void bc_ox1(GridS *pGrid)
       for (i=1; i<=nghost; i++) {
         pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
         if(pGrid->U[k][j][ie+i].M1 < 0.0){
+	  if(V && (NO > 0)) {
+	    printf("bc_ox1 %d %d %d %e\n",
+		   i, j, k, pGrid->U[k][j][ie+i].M1);
+	    NO--;
+	  }
           pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d;
           pGrid->U[k][j][ie+i].M1 = 0.0;
         }
