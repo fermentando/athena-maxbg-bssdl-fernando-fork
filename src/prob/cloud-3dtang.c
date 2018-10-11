@@ -155,10 +155,11 @@ static Real hst_vflow(GridS *pG, int i, int j, int k);
 #endif
 #ifdef EXPAND_DOMAIN
 static void expand_domain(DomainS *pDomain, Real scale);
-static Real r0, scalefac;
+static Real r0;
 
 static Real hst_scalefac(GridS *pG, int i, int j, int k);
 #endif
+static Real scalefac = 1.0; 
 
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud;
 
@@ -462,9 +463,6 @@ void problem(DomainS *pDomain)
 #endif
           }
         }
-
-        // TODO: remove this line
-        vx = vflow0;
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
@@ -1079,9 +1077,9 @@ void Userwork_in_loop(MeshS *pM)
 
 
 #ifdef FOLLOW_CLOUD
-  //dvx = cloud_mass_weighted_velocity(pM);
-  // TODO: remove this line
-  dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
+  dvx = cloud_mass_weighted_velocity(pM);
+  // Artificial shift
+  //dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
 
   if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
     ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
@@ -1242,8 +1240,6 @@ static void expand_domain(DomainS *pDomain, Real scale) {
   Real d;
   GridS *pGrid = pDomain->Grid;
 
-  ath_pout(0,"scaledens: %g\n", pow(scale, -3));
-
   if(fabs(scale - 1.) > 1e-2)
     ath_error("Scaling at one timestep is too big (%g).", scale);
 
@@ -1262,11 +1258,13 @@ static void expand_domain(DomainS *pDomain, Real scale) {
 
         pGrid->U[k][j][i].E *= pow(scale, -5);
 
+        /*
         if((i == is) && ( k == ks) && (j == js)) {
           printf("dens: %g, scalefac: %g, calc: %g, boundary: %g\n",
                  pGrid->U[k][j][i].d, scalefac, pow(scalefac, -3),
                  pGrid->U[k][j][i - 1].d);
         }
+        */
       }
     }
   }
@@ -2036,7 +2034,7 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
 {
-  if(pG->U[k][j][i].d < frac * drat)
+  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, -3))
     return 0;
   return pG->U[k][j][i].d;
 }
@@ -2055,7 +2053,7 @@ static Real hst_m110(GridS *pG, int i, int j, int k)
 
 static Real hst_Mx13(GridS *pG, int i, int j, int k)
 {
-  if(pG->U[k][j][i].d < drat / 3.)
+  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, -3))
     return 0;
   return pG->U[k][j][i].M1;
 }
