@@ -793,6 +793,9 @@ void problem_write_restart(MeshS *pM, FILE *fp)
   fwrite(&x_shift, sizeof(Real), 1, fp);
   fwrite(&vflow,   sizeof(Real), 1, fp);
 #endif
+#ifdef EXPAND_DOMAIN
+  fwrite(&scalefac,   sizeof(Real), 1, fp);
+#endif
 
   return;
 }
@@ -908,6 +911,10 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   fread(&x_shift, sizeof(Real), 1, fp);
   fread(&vflow,   sizeof(Real), 1, fp);
 #endif
+#ifdef EXPAND_DOMAIN
+  fread(&scalefac,   sizeof(Real), 1, fp);
+#endif
+
 
   return;
 }
