@@ -1229,7 +1229,7 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   }
 
 #ifdef EXPAND_DOMAIN
-  x_shift += (scalefac * vflow0 - vflow) * pDomain->Grid->dt;
+  x_shift += (vflow0 / scalefac - vflow) * pDomain->Grid->dt;
 #else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
