@@ -217,7 +217,7 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
-  vflow = 0; // Uncomment this for `static` example
+  // vflow = 0; // Uncomment this for `static` example
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
@@ -462,6 +462,9 @@ void problem(DomainS *pDomain)
 #endif
           }
         }
+
+        // TODO: remove this line
+        vx = vflow0;
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
@@ -1076,7 +1079,10 @@ void Userwork_in_loop(MeshS *pM)
 
 
 #ifdef FOLLOW_CLOUD
-  dvx = cloud_mass_weighted_velocity(pM);
+  //dvx = cloud_mass_weighted_velocity(pM);
+  // TODO: remove this line
+  dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
+
   if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
     ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
     dvx = 0.0;
@@ -1102,7 +1108,7 @@ void Userwork_in_loop(MeshS *pM)
     dvx = vflow;
   }
 #endif /* not FLOW_PROFILE */
-  ath_pout(0,"[dvx:]  %0.15e [vflow:] %.15e\n",dvx,vflow);
+  ath_pout(0,"[dvx:]  %0.10e [vflow:] %.10e [xshift:] %.10e\n",dvx,vflow, x_shift);
   vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
@@ -1111,6 +1117,8 @@ void Userwork_in_loop(MeshS *pM)
   ath_pout(0,"[scalefac:] %0.10e [new:] %.10e [ratio - 1:] %.5e\n",
            scalefac, new_scalefac, new_scalefac / scalefac - 1.);
 #endif
+
+
 
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
@@ -1231,11 +1239,14 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 static void expand_domain(DomainS *pDomain, Real scale) {
   int i, j, k;
   int is,ie,js,je,ks,ke;
-
   Real d;
+  GridS *pGrid = pDomain->Grid;
+
   ath_pout(0,"scaledens: %g\n", pow(scale, -3));
 
-  GridS *pGrid = pDomain->Grid;
+  if(fabs(scale - 1.) > 1e-2)
+    ath_error("Scaling at one timestep is too big (%g).", scale);
+
   is = pGrid->is; ie = pGrid->ie;
   js = pGrid->js; je = pGrid->je;
   ks = pGrid->ks; ke = pGrid->ke;
