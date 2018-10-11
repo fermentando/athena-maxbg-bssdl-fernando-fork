@@ -22,11 +22,12 @@
 #include "particles/particle.h"
 #endif
 
-#define FOLLOW_CLOUD
-#define REPORT_NANS
-#define ENERGY_COOLING
-//#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
-//#define ENERGY_HEATING // Uncomment this line for heating
+#define FOLLOW_CLOUD         // Moving reference frame
+#define REPORT_NANS          // Verbose
+#define ENERGY_COOLING       // Cooling
+//#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
+//#define ENERGY_HEATING     // Uncomment this line for heating
+#define EXPAND_DOMAIN        // Expand domain while moving out
 /* #define INSTANTCOOL */
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -141,6 +142,7 @@ static void radiate_energy(MeshS *pM);
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
+static Real hst_xshift(GridS *pG, int i, int j, int k);
 #endif  /* INSTANTCOOL */
 
 #ifdef FOLLOW_CLOUD
@@ -150,6 +152,12 @@ static Real x_shift;
 
 static Real hst_xshift(GridS *pG, int i, int j, int k);
 static Real hst_vflow(GridS *pG, int i, int j, int k);
+#endif
+#ifdef EXPAND_DOMAIN
+static void expand_domain(DomainS *pDomain, Real scale);
+static Real r0, scalefac;
+
+static Real hst_scalefac(GridS *pG, int i, int j, int k);
 #endif
 
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud;
@@ -211,6 +219,11 @@ void problem(DomainS *pDomain)
   vflow0 = vflow;
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
+#endif
+
+#ifdef EXPAND_DOMAIN
+  scalefac = 1.0;
+  r0 = par_getd("problem", "r0");
 #endif
 
 #ifdef MHD
@@ -289,6 +302,10 @@ void problem(DomainS *pDomain)
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift");
   dump_history_enroll_alt(hst_vflow,  "v_flow");
+#endif
+
+#ifdef EXPAND_DOMAIN
+  dump_history_enroll_alt(hst_scalefac,  "scalefac");
 #endif
 
 #if (NSCALARS > 0)
@@ -853,6 +870,10 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll_alt(hst_vflow,  "v_flow");
 #endif
 
+#ifdef EXPAND_DOMAIN
+  dump_history_enroll_alt(hst_scalefac,  "scalefac");
+#endif
+
 #if (NSCALARS > 0)
   dump_history_enroll(hst_c,    "<c>");
   dump_history_enroll(hst_c_sq, "<c^2>");
@@ -1048,6 +1069,9 @@ void Userwork_in_loop(MeshS *pM)
 #ifdef FOLLOW_CLOUD
   Real dvx, newdvx, expt;
 #endif
+#ifdef EXPAND_DOMAIN
+  Real new_scalefac;
+#endif
 
 
 #ifdef FOLLOW_CLOUD
@@ -1081,15 +1105,29 @@ void Userwork_in_loop(MeshS *pM)
   vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
+#ifdef EXPAND_DOMAIN
+  new_scalefac = (r0 + x_shift) / r0;
+  ath_pout(0,"[scalefac:] %0.10e [new:] %.10e [ratio - 1:] %.5e\n",
+           scalefac, new_scalefac, new_scalefac / scalefac - 1.);
+#endif
+
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
       if (pM->Domain[nl][nd].Grid != NULL) {
 #ifdef FOLLOW_CLOUD
         boost_frame(&(pM->Domain[nl][nd]), dvx);
 #endif
+#ifdef EXPAND_DOMAIN
+        expand_domain((&(pM->Domain[nl][nd])), new_scalefac / scalefac);
+#endif
       }
     }
   }
+#ifdef EXPAND_DOMAIN
+  vflow = vflow / (new_scalefac / scalefac);
+  scalefac = new_scalefac;
+#endif
+
 
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
@@ -1142,6 +1180,7 @@ void Userwork_after_loop(MeshS *pM)
 /*==============================================================================
  * PHYSICS FUNCTIONS:
  * boost_frame()         - boost simulation frame by a velocity increment
+ * expand_domain()       - expands domain by scalefactor
  * report_nans()         - apply a ceiling and floor to the temperature
  * cloud_velocity()      - find the mass-weighted velocity of the cloud.
  * nu_fun()              - kinematic viscosity (i.e., cm^2/s)
@@ -1175,12 +1214,54 @@ static void boost_frame(DomainS *pDomain, Real dvx)
     }
   }
 
+#ifdef EXPAND_DOMAIN
+  x_shift += (scalefac * vflow0 - vflow) * pDomain->Grid->dt;
+#else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
+#endif // EXPAND_DOMAIN
 
   return;
 }
 #endif  /* FOLLOW_CLOUD */
+
+
+#ifdef EXPAND_DOMAIN
+static void expand_domain(DomainS *pDomain, Real scale) {
+  int i, j, k;
+  int is,ie,js,je,ks,ke;
+
+  Real d;
+  ath_pout(0,"scaledens: %g\n", pow(scale, -3));
+
+  GridS *pGrid = pDomain->Grid;
+  is = pGrid->is; ie = pGrid->ie;
+  js = pGrid->js; je = pGrid->je;
+  ks = pGrid->ks; ke = pGrid->ke;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=is; i<=ie; i++) {
+        pGrid->U[k][j][i].d *= pow(scale, -3);
+
+        pGrid->U[k][j][i].M1 *= pow(scale, -4);
+        pGrid->U[k][j][i].M2 *= pow(scale, -4);
+        pGrid->U[k][j][i].M3 *= pow(scale, -4);
+
+        pGrid->U[k][j][i].d *= pow(scale, -5);
+
+        if((i == is) && ( k == ks) && (j == js)) {
+          printf("dens: %g, scalefac: %g, calc: %g, boundary: %g\n",
+                 pGrid->U[k][j][i].d, scalefac, pow(scalefac, -3),
+                 pGrid->U[k][j][i - 1].d);
+        }
+      }
+    }
+  }
+
+  return;
+}
+#endif // EXPAND_DOMAIN
 
 
 #ifdef REPORT_NANS
@@ -1987,6 +2068,13 @@ static Real hst_vflow(GridS *pG, int i, int j, int k)
 }
 #endif
 
+#ifdef EXPAND_DOMAIN
+static Real hst_scalefac(GridS *pG, int i, int j, int k)
+{
+  return scalefac;
+}
+#endif
+
 
 /* dye-weighted hst quantities */
 #if (NSCALARS > 0)
@@ -2130,7 +2218,16 @@ static void bc_ix1(GridS *pGrid)
 #else
         vx = vflow;
         rho = 1.0;
-#endif
+#endif /* FLOW_PROFILE */
+#ifdef EXPAND_DOMAIN
+        // vflow is already scaled
+        /*
+        vx *= pow(scalefac, -2);
+        vy *= pow(scalefac, -2);
+        vz *= pow(scalefac, -2);
+        */
+        rho *= pow(scalefac, -3);
+#endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
         pGrid->U[k][j][is-i].M1 = rho * vx;
         pGrid->U[k][j][is-i].M2 = rho * vy;
@@ -2141,6 +2238,9 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is-i].E = flow_profile_pressure(cx1, x2, x3) / Gamma_1;
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
+#ifdef EXPAND_DOMAIN
+        pGrid->U[k][j][is-i].E *= pow(scalefac, -5);
+#endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
 #endif  /* ISOTHERMAL */
@@ -2159,7 +2259,7 @@ static void bc_ix1(GridS *pGrid)
       }
     }
   } // End loop over grid cells
-
+  //ath_pout(0, "[bc_ix1] rho = %.5e, scalefac = %.5e\n", rho, scalefac);
 
 #ifdef MHD
 /* B1i is not set at i=is-nghost */
