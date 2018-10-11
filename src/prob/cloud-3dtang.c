@@ -877,6 +877,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
 #ifdef EXPAND_DOMAIN
   dump_history_enroll_alt(hst_scalefac,  "scalefac");
+  r0 = par_getd("problem", "r0");
 #endif
 
 #if (NSCALARS > 0)
