@@ -217,6 +217,7 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
+  vflow = 0; // Uncomment this for `static` example
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
@@ -1248,7 +1249,7 @@ static void expand_domain(DomainS *pDomain, Real scale) {
         pGrid->U[k][j][i].M2 *= pow(scale, -4);
         pGrid->U[k][j][i].M3 *= pow(scale, -4);
 
-        pGrid->U[k][j][i].d *= pow(scale, -5);
+        pGrid->U[k][j][i].E *= pow(scale, -5);
 
         if((i == is) && ( k == ks) && (j == js)) {
           printf("dens: %g, scalefac: %g, calc: %g, boundary: %g\n",
