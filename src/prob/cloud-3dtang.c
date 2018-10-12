@@ -7,6 +7,7 @@
 #include "athena.h"
 #include "globals.h"
 #include "prototypes.h"
+#include "prob/expand_domain.h"
 
 #include "prob/math_functions.h"
 
@@ -1139,7 +1140,7 @@ void Userwork_in_loop(MeshS *pM)
     }
   }
 #ifdef EXPAND_DOMAIN
-  vflow = vflow / (new_scalefac / scalefac);
+  vflow = vflow * pow(new_scalefac / scalefac, ed_exp_vx);
   scalefac = new_scalefac;
 #endif
 
@@ -1230,7 +1231,7 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   }
 
 #ifdef EXPAND_DOMAIN
-  x_shift += (vflow0 / scalefac - vflow) * pDomain->Grid->dt;
+  x_shift += (vflow0 * pow(scalefac, ed_exp_vx) - vflow) * pDomain->Grid->dt;
 #else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
@@ -1245,8 +1246,12 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 static void expand_domain(DomainS *pDomain, Real scale) {
   int i, j, k;
   int is,ie,js,je,ks,ke;
-  Real d;
+  Real E0;
   GridS *pGrid = pDomain->Grid;
+
+#ifdef MHD
+  ath_error("Not thought about scaling magnetic fields yet...");
+#endif
 
   if(fabs(scale - 1.) > 1e-2)
     ath_error("Scaling at one timestep is too big (%g).", scale);
@@ -1258,13 +1263,21 @@ static void expand_domain(DomainS *pDomain, Real scale) {
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
-        pGrid->U[k][j][i].d *= pow(scale, -3);
+        E0 = pGrid->U[k][j][i].E - 0.5 * (SQR(pGrid->U[k][j][i].M1) +\
+                                          SQR(pGrid->U[k][j][i].M2) +\
+                                          SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
+        pGrid->U[k][j][i].d *= pow(scale, ed_exp_rho);
 
-        pGrid->U[k][j][i].M1 *= pow(scale, -4);
-        pGrid->U[k][j][i].M2 *= pow(scale, -4);
-        pGrid->U[k][j][i].M3 *= pow(scale, -4);
+        pGrid->U[k][j][i].M1 *= pow(scale, ed_exp_rho + ed_exp_vx);
+        pGrid->U[k][j][i].M2 *= pow(scale, ed_exp_rho + ed_exp_vy);
+        pGrid->U[k][j][i].M3 *= pow(scale, ed_exp_rho + ed_exp_vz);
 
-        pGrid->U[k][j][i].E *= pow(scale, -5);
+        E0 = MAX(TINY_NUMBER, E0);
+        pGrid->U[k][j][i].E = pow(E0, ed_exp_pressure) + \
+          0.5 * (SQR(pGrid->U[k][j][i].M1) +                            \
+                 SQR(pGrid->U[k][j][i].M2) +                            \
+                 SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
+
 
         /*
         if((i == is) && ( k == ks) && (j == js)) {
@@ -2042,7 +2055,7 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
 {
-  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, -3))
+  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp_rho))
     return 0;
   return pG->U[k][j][i].d;
 }
@@ -2061,7 +2074,7 @@ static Real hst_m110(GridS *pG, int i, int j, int k)
 
 static Real hst_Mx13(GridS *pG, int i, int j, int k)
 {
-  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, -3))
+  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp_rho))
     return 0;
   return pG->U[k][j][i].M1;
 }
@@ -2244,7 +2257,7 @@ static void bc_ix1(GridS *pGrid)
         vy *= pow(scalefac, -2);
         vz *= pow(scalefac, -2);
         */
-        rho *= pow(scalefac, -3);
+        rho *= pow(scalefac, ed_exp_rho);
 #endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
         pGrid->U[k][j][is-i].M1 = rho * vx;
