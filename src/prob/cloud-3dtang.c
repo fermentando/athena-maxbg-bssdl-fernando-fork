@@ -219,7 +219,7 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
-  // vflow = 0; // Uncomment this for `static` example
+  // vflow = 0; // Uncomment this for constantly outflowing (fully entrained) test
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
@@ -1273,7 +1273,7 @@ static void expand_domain(DomainS *pDomain, Real scale) {
         pGrid->U[k][j][i].M3 *= pow(scale, ed_exp_rho + ed_exp_vz);
 
         E0 = MAX(TINY_NUMBER, E0);
-        pGrid->U[k][j][i].E = pow(E0, ed_exp_pressure) + \
+        pGrid->U[k][j][i].E = E0 * pow(scale, ed_exp_pressure) +        \
           0.5 * (SQR(pGrid->U[k][j][i].M1) +                            \
                  SQR(pGrid->U[k][j][i].M2) +                            \
                  SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
@@ -2251,12 +2251,6 @@ static void bc_ix1(GridS *pGrid)
         rho = 1.0;
 #endif /* FLOW_PROFILE */
 #ifdef EXPAND_DOMAIN
-        // vflow is already scaled
-        /*
-        vx *= pow(scalefac, -2);
-        vy *= pow(scalefac, -2);
-        vz *= pow(scalefac, -2);
-        */
         rho *= pow(scalefac, ed_exp_rho);
 #endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
@@ -2270,7 +2264,7 @@ static void bc_ix1(GridS *pGrid)
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
 #ifdef EXPAND_DOMAIN
-        pGrid->U[k][j][is-i].E *= pow(scalefac, -5);
+        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp_pressure);
 #endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
