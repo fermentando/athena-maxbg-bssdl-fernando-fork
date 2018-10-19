@@ -56,6 +56,7 @@ Real3Vect get_e3(Real theta, Real phi);
 /* custom hst quantities */
 static Real hst_m13(GridS *pG, int i, int j, int k);
 static Real hst_m110(GridS *pG, int i, int j, int k);
+static Real hst_mT2(GridS *pG, int i, int j, int k);
 static Real hst_Mx13(GridS *pG, int i, int j, int k);
 
 static Real hst_Erad(GridS *pG, int i, int j, int k);
@@ -180,6 +181,15 @@ static Real pro(Real r, Real rcloud)
 }
 
 
+static Real get_pressure(ConsS *u) {
+  Real E0 = 0.5 * (SQR(u->M1) + SQR(u->M2) + SQR(u->M3)) / u->d;
+#ifdef MHD
+  E0 += 0.5 * (SQR(u->B1c) + SQR(u->B2c) + SQR(u->B3c));
+#endif  /* MHD */
+
+  return (u->E - E0) * Gamma_1;
+}
+
 
 /*==============================================================================
  * INITIAL CONDITION:
@@ -298,6 +308,7 @@ void problem(DomainS *pDomain)
 
   dump_history_enroll(hst_m13, "m13");
   dump_history_enroll(hst_m110, "m110");
+  dump_history_enroll(hst_mT2, "mT2");
   dump_history_enroll(hst_Mx13, "Mx13");
 
   dump_history_enroll(hst_Erad, "Erad");
@@ -866,6 +877,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   // Re-enroll hst dumps after restart
   dump_history_enroll(hst_m13, "m13");
   dump_history_enroll(hst_m110, "m110");
+  dump_history_enroll(hst_mT2, "mT2");
   dump_history_enroll(hst_Mx13, "Mx13");
 
   dump_history_enroll(hst_Erad, "Erad");
@@ -2065,6 +2077,16 @@ static Real hst_m13(GridS *pG, int i, int j, int k)
 {
   return _hst_mcut(pG, i, j, k, 1/3.);
 }
+
+static Real hst_mT2(GridS *pG, int i, int j, int k)
+{
+  Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
+  const Real Tcl = (Gamma_1 + dp) / drat;
+  if(temp > 2 * Tcl)
+    return 0;
+  return pG->U[k][j][i].d;
+}
+
 
 static Real hst_m110(GridS *pG, int i, int j, int k)
 {
