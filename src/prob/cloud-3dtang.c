@@ -27,9 +27,9 @@
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-//#define ENERGY_HEATING     // Uncomment this line for heating
-#define EXPAND_DOMAIN        // Expand domain while moving out
-/* #define INSTANTCOOL */
+//#define EXPAND_DOMAIN        // Expand domain while moving out
+//#define INSTANTCOOL
+#define ENERGY_HEATING 2    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 //static void bc_ix2(GridS *pGrid);
@@ -136,7 +136,7 @@ static Real Yinv(const Real Y1);
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 
 static void integrate_cooling(GridS *pG);
-#ifdef ENERGY_HEATING
+#if ENERGY_HEATING == 1
 static void radiate_energy(MeshS *pM);
 #endif
 #endif  /* ENERGY_COOLING */
@@ -173,6 +173,10 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real nu;
 #endif  /* VISCOSITY */
+
+#if ENERGY_HEATING == 2 // fixed heating
+static Real heating_rate;
+#endif /* ENERGY_HEATING == 2 */
 
 static Real dtmin;
 static Real pro(Real r, Real rcloud)
@@ -269,6 +273,11 @@ void problem(DomainS *pDomain)
   dp = par_getd_def("problem", "dp", 0.0);
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
+
+#if ENERGY_HEATING == 2 // fixed heating
+  heating_rate = par_getd("problem","heating");
+#endif /* ENERGY_HEATING == 2 */
+
 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
@@ -508,7 +517,8 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].Erad = 0;
 #endif
 
-        /* printf("1337 %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, vx, vy, vz); */
+        /* printf("1337 %g %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, (Gamma_1 + dp) / rho, */
+        /*        vx, vy, vz);  */
 
 
       }
@@ -1176,7 +1186,7 @@ void Userwork_in_loop(MeshS *pM)
       }
     }
   }
-#ifdef ENERGY_HEATING
+#if ENERGY_HEATING == 1
   radiate_energy(pM);
 #endif
 
@@ -1688,7 +1698,7 @@ static void integrate_cooling(GridS *pG)
   PrimS W;
   ConsS U;
   // Changed this for tfloor!!
-  Real temp;
+  Real temp, tempold;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
@@ -1704,6 +1714,7 @@ static void integrate_cooling(GridS *pG)
 
         /* find temp in keV */
         temp = W.P/W.d;
+        tempold = temp;
 
         /* do not cool above a certain threshold */
         if( (tnotcool > 0) && (temp > tnotcool) ) 
@@ -1717,6 +1728,12 @@ static void integrate_cooling(GridS *pG)
 
         W.P = W.d * temp;
         U = Prim_to_Cons(&W);
+
+#if ENERGY_HEATING == 2
+        if(W.d > 90)
+          //ath_pout(-1,"d=%.2f,T=%.3e, cooled: %e, heated: %e, cool2: %e\n", W.d, tempold, pG->U[k][j][i].E - U.E, heating_rate * W.d * pG->dt, sdLambda(tempold) * W.d * W.d * pG->dt);
+        U.E += heating_rate * W.d * pG->dt;
+#endif
 
         /* record cooled energy */
         pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
@@ -1732,7 +1749,7 @@ static void integrate_cooling(GridS *pG)
 }
 
 
-#ifdef ENERGY_HEATING
+#if ENERGY_HEATING == 1
 /*
   Radiate cooled energy over whole domain
  */
