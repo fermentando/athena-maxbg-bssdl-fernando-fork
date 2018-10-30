@@ -27,7 +27,7 @@
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-//#define EXPAND_DOMAIN        // Expand domain while moving out
+#define EXPAND_DOMAIN        // Expand domain while moving out
 //#define INSTANTCOOL
 #define ENERGY_HEATING 2    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
@@ -1692,13 +1692,13 @@ static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro)
 
 static void integrate_cooling(GridS *pG)
 {
-  int i, j, k;
+  int i, j, k, iprint = 0;
   int is, ie, js, je, ks, ke;
 
   PrimS W;
   ConsS U;
   // Changed this for tfloor!!
-  Real temp, tempold;
+  Real temp, tempold, heat;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
@@ -1730,8 +1730,16 @@ static void integrate_cooling(GridS *pG)
         U = Prim_to_Cons(&W);
 
 #if ENERGY_HEATING == 2
-        if(W.d > 90)
-          //ath_pout(-1,"d=%.2f,T=%.3e, cooled: %e, heated: %e, cool2: %e\n", W.d, tempold, pG->U[k][j][i].E - U.E, heating_rate * W.d * pG->dt, sdLambda(tempold) * W.d * W.d * pG->dt);
+        if((W.d > 90 / (SQR(scalefac))) && (iprint < 10)) {
+          ath_pout(-1,"d=%.2f,T=%.3e, cooled: %e, heated: %e, req. heating: %.4e\n",
+                   W.d, tempold,
+                   pG->U[k][j][i].E - U.E,
+                   heating_rate * W.d * pG->dt,
+                   //sdLambda(tempold) * W.d * W.d * pG->dt,
+                   (pG->U[k][j][i].E - U.E) / pG->dt / 100.
+                   );
+          iprint++;
+        }
         U.E += heating_rate * W.d * pG->dt;
 #endif
 
