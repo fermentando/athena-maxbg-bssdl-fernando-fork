@@ -27,7 +27,7 @@
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-#define EXPAND_DOMAIN        // Expand domain while moving out
+//#define EXPAND_DOMAIN        // Expand domain while moving out
 //#define INSTANTCOOL
 #define ENERGY_HEATING 2    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
@@ -790,6 +790,11 @@ void problem(DomainS *pDomain)
 
 #ifdef PARTICLES
    init_particles(pDomain);
+#endif
+
+#if ENERGY_HEATING == 2
+   ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(T_cl) = %e).\n",
+            heating_rate, sdLambda((Gamma_1 + dp) / drat));
 #endif
 
   return;
@@ -1730,9 +1735,11 @@ static void integrate_cooling(GridS *pG)
         U = Prim_to_Cons(&W);
 
 #if ENERGY_HEATING == 2
-        if((W.d > 90 / (SQR(scalefac))) && (iprint < 10)) {
-          ath_pout(-1,"d=%.2f,T=%.3e, cooled: %e, heated: %e, req. heating: %.4e\n",
-                   W.d, tempold,
+        /*
+        if((W.d > 40 / (SQR(scalefac))) && (W.d < 120 / (SQR(scalefac))) &&\
+           (temp > tfloor_cooling) && (iprint < 5)) {
+          ath_pout(1,"d=%.2f, T=%.3e-->%.3e, cooled: %.4e, heated: %.4e, req. heating: %.3e\n",
+                   W.d, tempold, temp,
                    pG->U[k][j][i].E - U.E,
                    heating_rate * W.d * pG->dt,
                    //sdLambda(tempold) * W.d * W.d * pG->dt,
@@ -1740,6 +1747,7 @@ static void integrate_cooling(GridS *pG)
                    );
           iprint++;
         }
+        */
         U.E += heating_rate * W.d * pG->dt;
 #endif
 
