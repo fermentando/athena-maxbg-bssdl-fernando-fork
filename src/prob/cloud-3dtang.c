@@ -29,7 +29,7 @@
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
 //#define EXPAND_DOMAIN        // Expand domain while moving out
 //#define INSTANTCOOL
-#define ENERGY_HEATING 2    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
+#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 //static void bc_ix2(GridS *pGrid);
@@ -54,12 +54,12 @@ Real3Vect get_e2(Real theta, Real phi);
 Real3Vect get_e3(Real theta, Real phi);
 
 /* custom hst quantities */
-static Real hst_m13(GridS *pG, int i, int j, int k);
-static Real hst_m110(GridS *pG, int i, int j, int k);
-static Real hst_mT2(GridS *pG, int i, int j, int k);
-static Real hst_Mx13(GridS *pG, int i, int j, int k);
+static Real hst_m13(const GridS *pG, const int i, const int j, const int k);
+static Real hst_m110(const GridS *pG, const int i, const int j, const int k);
+static Real hst_mT2(const GridS *pG, const int i, const int j, const int k);
+static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k);
 
-static Real hst_Erad(GridS *pG, int i, int j, int k);
+static Real hst_Erad(const GridS *pG, const int i, const int j, const int k);
 
 
 /* dye-weighted hst quantities */
@@ -119,7 +119,7 @@ static int nan_dump_count;
 //#include "prob/cooling_data/WSS09_n1_Z1.h"
 //#include "prob/cooling_data/WSS09_CIE_Z1.h"
 
-static Real Yk[nfit_cool];
+static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
 
 
@@ -127,11 +127,11 @@ static Real Yk[nfit_cool];
 static void init_cooling();
 static void test_cooling();
 
-static Real sdLambda(const Real T);
+static Real sdLambda(const Real d, const Real T);
 static Real tcool(const Real d, const Real T);
 
-static Real Y(const Real T);
-static Real Yinv(const Real Y1);
+static Real Y(const Real T, const int id);
+static Real Yinv(const Real Y1, const int id);
 
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 
@@ -144,7 +144,7 @@ static void radiate_energy(MeshS *pM);
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
-static Real hst_xshift(GridS *pG, int i, int j, int k);
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
 #endif  /* INSTANTCOOL */
 
 #ifdef FOLLOW_CLOUD
@@ -152,14 +152,14 @@ static Real cloud_mass_weighted_velocity(MeshS *pM);
 static void boost_frame(DomainS *pDomain, Real dv);
 static Real x_shift;
 
-static Real hst_xshift(GridS *pG, int i, int j, int k);
-static Real hst_vflow(GridS *pG, int i, int j, int k);
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 #endif
 #ifdef EXPAND_DOMAIN
 static void expand_domain(DomainS *pDomain, Real scale);
 static Real r0;
 
-static Real hst_scalefac(GridS *pG, int i, int j, int k);
+static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k);
 #endif
 static Real scalefac = 1.0; 
 
@@ -793,8 +793,8 @@ void problem(DomainS *pDomain)
 #endif
 
 #if ENERGY_HEATING == 2
-   ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(T_cl) = %e).\n",
-            heating_rate, sdLambda((Gamma_1 + dp) / drat));
+   ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
+            heating_rate, sdLambda(drat,(Gamma_1 + dp) / drat));
 #endif
 
   return;
@@ -1577,7 +1577,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
 
 static void init_cooling()
 {
-  int k, n=nfit_cool-1;
+  int i, k, n=nfit_cool_T-1;
   Real term;
   const Real mu = 0.62, mu_e = 1.17;
 
@@ -1589,40 +1589,56 @@ static void init_cooling()
     ath_error("Cooling floor is smaller than first entry of cooling function.");
 
   /* populate Yk following equation A6 in Townsend (2009) */
-  Yk[n] = 0.0;
-  for (k=n-1; k>=0; k--){
-    term = (sdL[n]/sdL[k]) * (sdT[k]/sdT[n]);
+  for(i = 0; i < nfit_cool_d; i++) {
+    Yk[i][n] = 0.0;
+    for (k=n-1; k>=0; k--){
+      term = (sdL[i][n]/sdL[i][k]) * (sdT[k]/sdT[n]);
 
-    if (sdexpt[k] == 1.0)
-      term *= log(sdT[k]/sdT[k+1]);
-    else
-      term *= ((1.0 - pow(sdT[k]/sdT[k+1], sdexpt[k]-1.0)) / (1.0-sdexpt[k]));
+      if (sdexpt[i][k] == 1.0)
+        term *= log(sdT[k]/sdT[k+1]);
+      else
+        term *= ((1.0 - pow(sdT[k]/sdT[k+1], sdexpt[i][k]-1.0)) / (1.0-sdexpt[i][k]));
 
-    Yk[k] = Yk[k+1] - term;
+      Yk[i][k] = Yk[i][k+1] - term;
 
-    if(isnan(Yk[k]))
-      ath_error("Error initializing cooling. nan in Yk[%d]", k);
+      if(isnan(Yk[i][k]))
+        ath_error("Error initializing cooling. nan in Yk[%d][%d]", i, k);
+    }
   }
-
   return;
 }
 
 /* piecewise power-law fit to the cooling curve with temperature in
    keV and L in 1e-23 erg cm^3 / s */
-static Real sdLambda(const Real T)
+static Real sdLambda(const Real d, const Real T)
 {
-  int k, n=nfit_cool-1;
+  int iT, id; // bin indices for T,d
+  Real L1, L2;
+  const Real conv_fac = 1.311e-5; // from units of 1e-23 erg cm^3 /s to code units.
 
   /* first find the temperature bin */
-  for(k=n; k>=0; k--){
-    if (T >= sdT[k])
+  for(iT=nfit_cool_T-1; iT>=0; iT--){
+    if (T >= sdT[iT])
+      break;
+  }
+
+  /* Then find the density bin */
+  for(id=nfit_cool_d - 1; id>=0; id--) {
+    if(d >= sdd[id])
       break;
   }
 
   /* piecewise power-law; see equation A4 of Townsend (2009) */
-  /* (factor of 1.311e-5 takes lambda from units of 1e-23 erg cm^3 /s
-     to code units.) */
-  return (1.311e-5 * sdL[k] * pow(T/sdT[k], sdexpt[k]));
+  L1 = conv_fac * sdL[id][iT] * pow(T/sdT[iT], sdexpt[id][iT]);
+
+  if(nfit_cool_d == 1) // Only one density bin
+    return L1;
+
+  L2 = conv_fac * sdL[id+1][iT] * pow(T/sdT[iT], sdexpt[id+1][iT]);
+
+  // Linear interpolation
+  return L1 + (L2 - L1) / (sdd[id+1] - sdd[id]) * d;
+
 }
 
 static Real tcool(const Real d, const Real T)
@@ -1630,70 +1646,89 @@ static Real tcool(const Real d, const Real T)
   const Real mu = 0.62, mu_e = 1.17;
 
   /* equation 13 of Townsend (2009) */
-  return (SQR(mu_e) * T) / (Gamma_1 * d * sdLambda(T));
+  return (SQR(mu_e) * T) / (Gamma_1 * d * sdLambda(d,T));
 }
+
 
 /* see sdLambda() or equation A1 of Townsend (2009) for the
    definition */
-static Real Y(const Real T)
+static Real Y(const Real T, const int id)
 {
-  int k, n=nfit_cool-1;
+  int iT;
+  int nT = nfit_cool_T - 1;
+  int nd = nfit_cool_d - 1;
   Real term;
 
   /* first find the temperature bin */
-  for(k=n; k>=0; k--){
-    if (T >= sdT[k])
+  for(iT=nT; iT>=0; iT--){
+    if (T >= sdT[iT])
       break;
   }
 
   /* calculate Y using equation A5 in Townsend (2009) */
-  term = (sdL[n]/sdL[k]) * (sdT[k]/sdT[n]);
+  term = (sdL[nd][nT]/sdL[id][iT]) * (sdT[iT]/sdT[nT]);
 
-  if (sdexpt[k] == 1.0)
-    term *= log(sdT[k]/T);
+  if (sdexpt[id][iT] == 1.0)
+    term *= log(sdT[iT]/T);
   else
-    term *= ((1.0 - pow(sdT[k]/T, sdexpt[k]-1.0)) / (1.0-sdexpt[k]));
+    term *= ((1.0 - pow(sdT[iT]/T, sdexpt[id][iT]-1.0)) / (1.0-sdexpt[id][iT]));
 
-  return (Yk[k] + term);
+  return (Yk[id][iT] + term);
 }
 
-static Real Yinv(const Real Y1)
-{
-  int k, n=nfit_cool-1;
+
+static Real Yinv(const Real Y1, const int id) {
+  //int iT,id;
+  int nT = nfit_cool_T - 1;
+  int nd = nfit_cool_d - 1;
+  int iT;
   Real term;
 
   /* find the bin i in which the final temperature will be */
-  for(k=n; k>=0; k--){
-    if (Y(sdT[k]) >= Y1)
+  for(iT=nT; iT>=0; iT--){
+    if (Y(sdT[iT],id) >= Y1)
       break;
   }
 
-
   /* calculate Yinv using equation A7 in Townsend (2009) */
-  term = (sdL[k]/sdL[n]) * (sdT[n]/sdT[k]);
-  term *= (Y1 - Yk[k]);
+  term = (sdL[id][iT]/sdL[nd][nT]) * (sdT[nT]/sdT[iT]);
+  term *= (Y1 - Yk[id][iT]);
 
-  if (sdexpt[k] == 1.0)
+  if (sdexpt[id][iT] == 1.0)
     term = exp(-1.0*term);
   else{
-    term = pow(1.0 - (1.0-sdexpt[k])*term,
-               1.0/(1.0-sdexpt[k]));
+    term = pow(1.0 - (1.0-sdexpt[id][iT])*term,
+               1.0/(1.0-sdexpt[id][iT]));
   }
 
-  return (sdT[k] * term);
+  return (sdT[iT] * term);
 }
 
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro)
 {
-  Real term1, Tref;
-  int n=nfit_cool-1;
+  int id;
+  Real term1, Tref, dref;
+  Real T1, T2;
 
-  Tref = sdT[n];
+  Tref = sdT[nfit_cool_T-1];
+  dref = sdd[nfit_cool_d-1];
 
-  term1 = (T/Tref) * (sdLambda(Tref)/sdLambda(T)) * (dt_hydro/tcool(d, T));
+  /* Find the density bin */
+  for(id=nfit_cool_d - 1; id>=0; id--) {
+    if(d >= sdd[id])
+   break;
+  }
 
-  return Yinv(Y(T) + term1);
+  term1 = (T/Tref) * (sdLambda(dref, Tref)/sdLambda(d, T)) * (dt_hydro/tcool(d, T));
+  T1 = Yinv(Y(T,id) + term1, id);
+
+  if(nfit_cool_d == 1)
+    return T1;
+  T2 = Yinv(Y(T,id+1) + term1, id+1);
+
+  return T1 + (T2 - T1) / (sdd[id+1] - sdd[id]) * d;
 }
+
 
 static void integrate_cooling(GridS *pG)
 {
@@ -1722,7 +1757,7 @@ static void integrate_cooling(GridS *pG)
         tempold = temp;
 
         /* do not cool above a certain threshold */
-        if( (tnotcool > 0) && (temp > tnotcool) ) 
+        if( (tnotcool > 0) && (temp > tnotcool) )
           continue;
 
         temp = newtemp_townsend(W.d, temp, pG->dt);
@@ -1733,23 +1768,6 @@ static void integrate_cooling(GridS *pG)
 
         W.P = W.d * temp;
         U = Prim_to_Cons(&W);
-
-#if ENERGY_HEATING == 2
-        /*
-        if((W.d > 40 / (SQR(scalefac))) && (W.d < 120 / (SQR(scalefac))) &&\
-           (temp > tfloor_cooling) && (iprint < 5)) {
-          ath_pout(1,"d=%.2f, T=%.3e-->%.3e, cooled: %.4e, heated: %.4e, req. heating: %.3e\n",
-                   W.d, tempold, temp,
-                   pG->U[k][j][i].E - U.E,
-                   heating_rate * W.d * pG->dt,
-                   //sdLambda(tempold) * W.d * W.d * pG->dt,
-                   (pG->U[k][j][i].E - U.E) / pG->dt / 100.
-                   );
-          iprint++;
-        }
-        */
-        U.E += heating_rate * W.d * pG->dt;
-#endif
 
         /* record cooled energy */
         pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
@@ -1850,6 +1868,7 @@ static void test_cooling()
   int i, npts=100;
   Real logt, temp, tc, logdt, dt;
   Real err;
+  Real dens = 1.0;
 
   FILE *outfile;
 
@@ -1858,7 +1877,7 @@ static void test_cooling()
     logt = log(1.0e-4) + (log(5.0)-log(1.0e-4))*((double) i/(npts-1));
     temp = exp(logt);
 
-    fprintf(outfile, "%e\t%e\n", temp, sdLambda(temp));
+    fprintf(outfile, "%e\t%e\n", temp, sdLambda(dens,temp));
   }
   fclose(outfile);
 
@@ -2098,7 +2117,7 @@ static Real nu_fun(const Real d, const Real T,
 
  *----------------------------------------------------------------------------*/
 
-static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
+static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
   if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp_rho))
     return 0;
@@ -2106,12 +2125,12 @@ static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
 }
 
 
-static Real hst_m13(GridS *pG, int i, int j, int k)
+static Real hst_m13(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 1/3.);
 }
 
-static Real hst_mT2(GridS *pG, int i, int j, int k)
+static Real hst_mT2(const GridS *pG, const int i, const int j, const int k)
 {
   Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
   const Real Tcl = (Gamma_1 + dp) / drat;
@@ -2121,41 +2140,41 @@ static Real hst_mT2(GridS *pG, int i, int j, int k)
 }
 
 
-static Real hst_m110(GridS *pG, int i, int j, int k)
+static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 0.1);
 }
 
 
-static Real hst_Mx13(GridS *pG, int i, int j, int k)
+static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
   if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp_rho))
     return 0;
   return pG->U[k][j][i].M1;
 }
 
-static Real hst_Erad(GridS *pG, int i, int j, int k)
+static Real hst_Erad(const GridS *pG, const int i, const int j, const int k)
 {
   return pG->U[k][j][i].Erad;
 }
 
 
 #ifdef FOLLOW_CLOUD
-static Real hst_xshift(GridS *pG, int i, int j, int k)
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k)
 {
   return x_shift;
 }
 #endif
 
 #ifdef FOLLOW_CLOUD
-static Real hst_vflow(GridS *pG, int i, int j, int k)
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k)
 {
   return vflow;
 }
 #endif
 
 #ifdef EXPAND_DOMAIN
-static Real hst_scalefac(GridS *pG, int i, int j, int k)
+static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
 {
   return scalefac;
 }
