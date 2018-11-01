@@ -29,7 +29,7 @@
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
 //#define EXPAND_DOMAIN        // Expand domain while moving out
 //#define INSTANTCOOL
-#define ENERGY_HEATING 2    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
+#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 //static void bc_ix2(GridS *pGrid);
