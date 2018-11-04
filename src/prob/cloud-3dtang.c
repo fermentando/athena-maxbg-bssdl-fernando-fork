@@ -2,6 +2,7 @@
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 #include "defs.h"
 #include "athena.h"
@@ -11,6 +12,7 @@
 
 #include "prob/math_functions.h"
 
+#define NDEBUG // turn of asserts
 #ifdef MPI_PARALLEL
 #ifdef DOUBLE_PREC
 #define MPI_RL MPI_DOUBLE
@@ -114,14 +116,16 @@ static int nan_dump_count;
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 
-#include "prob/cooling_data/SD93_Z1.h"
+//#include "prob/cooling_data/SD93_Z1.h"
+//#include "prob/cooling_data/denstest.h"
+#include "prob/cooling_data/WSS09_z0_Z1.h"
+
 //#include "prob/cooling_data/SD93_Z1_S10.h"
 //#include "prob/cooling_data/WSS09_n1_Z1.h"
 //#include "prob/cooling_data/WSS09_CIE_Z1.h"
 
 static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
-
 
 /* must call init_cooling() in both problem() and read_restart() */
 static void init_cooling();
@@ -139,6 +143,7 @@ static void integrate_cooling(GridS *pG);
 #if ENERGY_HEATING == 1
 static void radiate_energy(MeshS *pM);
 #endif
+static Real dens_conv;
 #endif  /* ENERGY_COOLING */
 
 #ifdef INSTANTCOOL
@@ -161,7 +166,7 @@ static Real r0;
 
 static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k);
 #endif
-static Real scalefac = 1.0; 
+static Real scalefac = 1.0;
 
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud;
 
@@ -269,6 +274,7 @@ void problem(DomainS *pDomain)
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
+  dens_conv = par_getd_def("problem", "dens_conv", 1.0);
 
   dp = par_getd_def("problem", "dp", 0.0);
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
@@ -308,7 +314,7 @@ void problem(DomainS *pDomain)
 
 #ifdef ENERGY_COOLING
   init_cooling();
-  /* test_cooling(); */
+  //test_cooling();
 #endif
 
 #ifdef INSTANTCOOL
@@ -1586,7 +1592,8 @@ static void init_cooling()
     sdT[k] /= (8.197 * mu);
 
   if(tfloor_cooling < sdT[0])
-    ath_error("Cooling floor is smaller than first entry of cooling function.");
+    ath_error("Cooling floor is smaller than first entry of cooling function (%e vs %e).",
+              tfloor_cooling, sdT[0]);
 
   /* populate Yk following equation A6 in Townsend (2009) */
   for(i = 0; i < nfit_cool_d; i++) {
@@ -1610,28 +1617,39 @@ static void init_cooling()
 
 /* piecewise power-law fit to the cooling curve with temperature in
    keV and L in 1e-23 erg cm^3 / s */
-static Real sdLambda(const Real d, const Real T)
+static Real sdLambda(const Real d0, const Real T)
 {
   int iT, id; // bin indices for T,d
   Real L1, L2;
   const Real conv_fac = 1.311e-5; // from units of 1e-23 erg cm^3 /s to code units.
+  const Real d = d0 * dens_conv;
+  int interpolate = (nfit_cool_d > 1);
 
   /* first find the temperature bin */
   for(iT=nfit_cool_T-1; iT>=0; iT--){
     if (T >= sdT[iT])
       break;
   }
+  assert(iT >= 0);
 
-  /* Then find the density bin */
-  for(id=nfit_cool_d - 1; id>=0; id--) {
-    if(d >= sdd[id])
-      break;
+  /* Find the density bin */
+  if(d <= sdd[0]) {
+    interpolate = 0;
+    id = 0;
+  } else if(d >= sdd[nfit_cool_d - 1]) {
+    interpolate = 0;
+    id = nfit_cool_d - 1;
+  } else {
+    for(id=nfit_cool_d - 1; id>=0; id--) {
+      if(d >= sdd[id])
+        break;
+    }
   }
 
   /* piecewise power-law; see equation A4 of Townsend (2009) */
   L1 = conv_fac * sdL[id][iT] * pow(T/sdT[iT], sdexpt[id][iT]);
 
-  if(nfit_cool_d == 1) // Only one density bin
+  if(!interpolate) 
     return L1;
 
   L2 = conv_fac * sdL[id+1][iT] * pow(T/sdT[iT], sdexpt[id+1][iT]);
@@ -1666,7 +1684,7 @@ static Real Y(const Real T, const int id)
   }
 
   /* calculate Y using equation A5 in Townsend (2009) */
-  term = (sdL[nd][nT]/sdL[id][iT]) * (sdT[iT]/sdT[nT]);
+  term = (sdL[id][nT]/sdL[id][iT]) * (sdT[iT]/sdT[nT]);
 
   if (sdexpt[id][iT] == 1.0)
     term *= log(sdT[iT]/T);
@@ -1686,12 +1704,12 @@ static Real Yinv(const Real Y1, const int id) {
 
   /* find the bin i in which the final temperature will be */
   for(iT=nT; iT>=0; iT--){
-    if (Y(sdT[iT],id) >= Y1)
+    if (Y(sdT[iT], id) >= Y1)
       break;
   }
 
   /* calculate Yinv using equation A7 in Townsend (2009) */
-  term = (sdL[id][iT]/sdL[nd][nT]) * (sdT[nT]/sdT[iT]);
+  term = (sdL[id][iT]/sdL[id][nT]) * (sdT[nT]/sdT[iT]);
   term *= (Y1 - Yk[id][iT]);
 
   if (sdexpt[id][iT] == 1.0)
@@ -1704,28 +1722,46 @@ static Real Yinv(const Real Y1, const int id) {
   return (sdT[iT] * term);
 }
 
-static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro)
+
+static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
 {
   int id;
   Real term1, Tref, dref;
   Real T1, T2;
+  const Real d = d0 * dens_conv;
+  int interpolate = nfit_cool_d > 1;
 
   Tref = sdT[nfit_cool_T-1];
-  dref = sdd[nfit_cool_d-1];
+  dref = sdd[nfit_cool_d-1] / dens_conv;
 
   /* Find the density bin */
-  for(id=nfit_cool_d - 1; id>=0; id--) {
-    if(d >= sdd[id])
-   break;
+  if(d <= sdd[0]) {
+    interpolate = 0;
+    id = 0;
+  } else if(d >= sdd[nfit_cool_d - 1]) {
+    interpolate = 0;
+    id = nfit_cool_d - 1;
+  } else {
+    for(id=nfit_cool_d - 1; id>=0; id--) {
+      if(d >= sdd[id])
+        break;
+    }
   }
+  assert(id>=0);
+  assert(id<nfit_cool_d);
 
-  term1 = (T/Tref) * (sdLambda(dref, Tref)/sdLambda(d, T)) * (dt_hydro/tcool(d, T));
+  /* Calculate new T */
+  term1 = (T/Tref) * (sdLambda(d0, Tref)/sdLambda(d0, T)) * (dt_hydro/tcool(d0, T));
   T1 = Yinv(Y(T,id) + term1, id);
-
-  if(nfit_cool_d == 1)
+  assert(!isnan(T1));
+  //ath_pout(0,"[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e\n", d, id, T, T1);
+  if(!interpolate)
     return T1;
-  T2 = Yinv(Y(T,id+1) + term1, id+1);
 
+  T2 = Yinv(Y(T,id+1) + term1, id+1);
+  assert(!isnan(T2));
+
+  /* Linear interpolation along density */
   return T1 + (T2 - T1) / (sdd[id+1] - sdd[id]) * d;
 }
 
@@ -1865,7 +1901,7 @@ static void radiate_energy(MeshS *pM) {
 
 static void test_cooling()
 {
-  int i, npts=100;
+  int i, j, npts=100;
   Real logt, temp, tc, logdt, dt;
   Real err;
   Real dens = 1.0;
@@ -1877,10 +1913,19 @@ static void test_cooling()
     logt = log(1.0e-4) + (log(5.0)-log(1.0e-4))*((double) i/(npts-1));
     temp = exp(logt);
 
-    fprintf(outfile, "%e\t%e\n", temp, sdLambda(dens,temp));
+    fprintf(outfile, "%e\t%e\t%e\n", temp, sdLambda(dens,temp), sdLambda(dens * drat,temp));
   }
   fclose(outfile);
 
+
+  outfile = fopen("Yk.dat", "w");
+  for(i=0; i<nfit_cool_T; i++) {
+    fprintf(outfile, "%d\t", i);
+    for(j = 0; j < nfit_cool_d; j++)
+      fprintf(outfile, "%e\t", Yk[j][i]);
+    fprintf(outfile, "\n");
+  }
+  fclose(outfile);
 
   temp = 10.0;
   tc = tcool(1.0, temp);
@@ -1889,9 +1934,9 @@ static void test_cooling()
   for(i=0; i<npts; i++){
     logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
     dt = tc * exp(logdt);
-
     fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
   }
+  fclose(outfile);
 
   temp = 3.0;
   tc = tcool(1.0, temp);
@@ -1903,6 +1948,7 @@ static void test_cooling()
 
     fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
   }
+  fclose(outfile);
 
   temp = 1.0;
   tc = tcool(1.0, temp);
@@ -1914,6 +1960,7 @@ static void test_cooling()
 
     fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
   }
+  fclose(outfile);
 
   temp = 0.3;
   tc = tcool(1.0, temp);
@@ -1925,9 +1972,11 @@ static void test_cooling()
 
     fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
   }
+  fclose(outfile);
 
   temp = 0.1;
   tc = tcool(1.0, temp);
+
 
   outfile = fopen("townsend-fig1-0.1kev.dat", "w");
   for(i=0; i<npts; i++){
@@ -1936,9 +1985,22 @@ static void test_cooling()
 
     fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
   }
+  fclose(outfile);
+
+  temp = 0.1;
+  tc = tcool(100.0, temp);
+
+  outfile = fopen("townsend-fig1-0.1kev-100.dat", "w");
+  for(i=0; i<npts; i++){
+    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+    dt = tc * exp(logdt);
+
+    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(100.0, temp, dt));
+  }
+  fclose(outfile);
 
 
-  ath_error("check cooling stuff.\n");
+  ath_error("check cooling stuff done.\n");
 
   return;
 }
@@ -2722,3 +2784,4 @@ void add_new_particles(MeshS *pM) {
 }
 
 #endif /* PARTICLES */
+
