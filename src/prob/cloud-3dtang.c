@@ -1753,8 +1753,10 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   /* Calculate new T */
   term1 = (T/Tref) * (sdLambda(d0, Tref)/sdLambda(d0, T)) * (dt_hydro/tcool(d0, T));
   T1 = Yinv(Y(T,id) + term1, id);
-  assert(!isnan(T1));
-  //ath_pout(0,"[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e\n", d, id, T, T1);
+  if(isnan(T1)) {
+    printf("[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e, dt_hydro=%e, tcool=%e, Tref=%e, sdLambda=%e, term1=%e\n", d, id, T, T1,dt_hydro, tcool(d0,T),Tref, sdLambda(d0, T), term1);
+    assert(!isnan(T1));
+  }
   if(!interpolate)
     return T1;
 
