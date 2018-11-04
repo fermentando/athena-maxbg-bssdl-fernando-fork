@@ -314,7 +314,7 @@ void problem(DomainS *pDomain)
 
 #ifdef ENERGY_COOLING
   init_cooling();
-  //test_cooling();
+  test_cooling();
 #endif
 
 #ifdef INSTANTCOOL
@@ -1908,6 +1908,10 @@ static void test_cooling()
 
   FILE *outfile;
 
+  /* this sometimes crashes, so let's try it */
+  newtemp_townsend(sdd[nfit_cool_d - 1] - 1e-4, 7.173e-04, 8.050312e-03);
+
+  /* Now outputting some information from Townsend (2009) */
   outfile = fopen("lambda.dat", "w");
   for(i=0; i<npts; i++){
     logt = log(1.0e-4) + (log(5.0)-log(1.0e-4))*((double) i/(npts-1));
