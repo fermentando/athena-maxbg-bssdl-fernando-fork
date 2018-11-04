@@ -12,7 +12,6 @@
 
 #include "prob/math_functions.h"
 
-#define NDEBUG // turn of asserts
 #ifdef MPI_PARALLEL
 #ifdef DOUBLE_PREC
 #define MPI_RL MPI_DOUBLE
@@ -314,7 +313,7 @@ void problem(DomainS *pDomain)
 
 #ifdef ENERGY_COOLING
   init_cooling();
-  test_cooling();
+  /* test_cooling(); */
 #endif
 
 #ifdef INSTANTCOOL
@@ -1588,8 +1587,10 @@ static void init_cooling()
   const Real mu = 0.62, mu_e = 1.17;
 
   /* convert T in the cooling function from keV to code units */
-  for (k=0; k<=n; k++)
+  for (k=0; k<=n; k++) {
     sdT[k] /= (8.197 * mu);
+    if(sdT[k] <= 0) ath_error("sdT[%d]=%e. Has to be > 0.", k, sdT[k]);
+  }
 
   if(tfloor_cooling < sdT[0])
     ath_error("Cooling floor is smaller than first entry of cooling function (%e vs %e).",
@@ -1599,6 +1600,7 @@ static void init_cooling()
   for(i = 0; i < nfit_cool_d; i++) {
     Yk[i][n] = 0.0;
     for (k=n-1; k>=0; k--){
+      if(sdL[i][k] <= 0) ath_error("sdL[%d][%d]=%e. Has to be > 0.", i, k, sdL[i][k]);
       term = (sdL[i][n]/sdL[i][k]) * (sdT[k]/sdT[n]);
 
       if (sdexpt[i][k] == 1.0)
@@ -1703,9 +1705,9 @@ static Real Yinv(const Real Y1, const int id) {
   Real term;
 
   /* find the bin i in which the final temperature will be */
-  for(iT=nT; iT>=0; iT--){
-    if (Y(sdT[iT], id) >= Y1)
-      break;
+  for(iT=nT; iT>0; iT--){       // use iT>0 instead of iT>=0 to force min(iT)=0
+    if (Y(sdT[iT], id) >= Y1)   // this means that newT<sdT[0] are wrong
+      break;                    // but since we have Tfloor>sdT[0] we're good.
   }
 
   /* calculate Yinv using equation A7 in Townsend (2009) */
@@ -1717,6 +1719,11 @@ static Real Yinv(const Real Y1, const int id) {
   else{
     term = pow(1.0 - (1.0-sdexpt[id][iT])*term,
                1.0/(1.0-sdexpt[id][iT]));
+  }
+
+
+  if(!isfinite(term)) {
+    ath_error("nan detected in Yinv (term=%e, Y1=%e).\n", term, Y1);
   }
 
   return (sdT[iT] * term);
@@ -1754,7 +1761,7 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   term1 = (T/Tref) * (sdLambda(d0, Tref)/sdLambda(d0, T)) * (dt_hydro/tcool(d0, T));
   T1 = Yinv(Y(T,id) + term1, id);
   if(isnan(T1)) {
-    printf("[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e, dt_hydro=%e, tcool=%e, Tref=%e, sdLambda=%e, term1=%e\n", d, id, T, T1,dt_hydro, tcool(d0,T),Tref, sdLambda(d0, T), term1);
+    printf("[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e, dt_hydro=%e, tcool=%e, Tref=%e, sdLambda=%e, term1=%e, Y(T,id)=%e\n", d, id, T, T1,dt_hydro, tcool(d0,T),Tref, sdLambda(d0, T), term1, Y(T,id));
     assert(!isnan(T1));
   }
   if(!interpolate)
