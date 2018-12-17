@@ -33,10 +33,6 @@
 #define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
-//static void bc_ix2(GridS *pGrid);
-//static void bc_ox2(GridS *pGrid);
-//static void bc_ix3(GridS *pGrid);
-//static void bc_ox3(GridS *pGrid);
 
 static void check_div_b(GridS *pGrid);
 
@@ -767,17 +763,8 @@ void problem(DomainS *pDomain)
 
   if (pDomain->Disp[0] == 0)
     bvals_mhd_fun(pDomain, left_x1,  bc_ix1);
-  /* if (pDomain->Disp[1] == 0) */
-  /*   bvals_mhd_fun(pDomain, left_x2,  bc_ix2); */
-  /* if (pDomain->Disp[2] == 0) */
-  /*   bvals_mhd_fun(pDomain, left_x3,  bc_ix3); */
   if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
     bvals_mhd_fun(pDomain, right_x1, bc_ox1);
-  /* if (pDomain->MaxX[1] == pDomain->RootMaxX[1]) */
-  /*   bvals_mhd_fun(pDomain, right_x2, bc_ox2); */
-  /* if (pDomain->MaxX[2] == pDomain->RootMaxX[2]) */
-  /*   bvals_mhd_fun(pDomain, right_x3, bc_ox3); */
-
 
   /* seed a perturbation */
    for (k=ks; k<=ke; k++) {
@@ -840,16 +827,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++) {
       if (pM->Domain[nl][nd].Disp[0] == 0)
         bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1,  bc_ix1);
-       /* if (pM->Domain[nl][nd].Disp[1] == 0) */
-       /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  bc_ix2); */
-       /* if (pM->Domain[nl][nd].Disp[2] == 0) */
-       /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  bc_ix3); */
        if (pM->Domain[nl][nd].MaxX[0] == pM->Domain[nl][nd].RootMaxX[0])
          bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, bc_ox1);
-       /* if (pM->Domain[nl][nd].MaxX[1] == pM->Domain[nl][nd].RootMaxX[1]) */
-       /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, bc_ox2); */
-       /* if (pM->Domain[nl][nd].MaxX[2] == pM->Domain[nl][nd].RootMaxX[2]) */
-       /*   bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, bc_ox3); */
 
     }
   }
