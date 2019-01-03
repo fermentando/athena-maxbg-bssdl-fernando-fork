@@ -2114,7 +2114,8 @@ static void bc_ix1(GridS *pG)
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
         // Set per default everything to first cell
-        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+        pG->U[k][j][is-i] = pG->U[k][j][is];
+        
 
 #if (NSCALARS > 0)
         pG->U[k][j][is - i].s[0] = 0.0;
@@ -2161,12 +2162,12 @@ static void bc_ix1(GridS *pG)
 #ifdef MHD
         /* Try to interpolate also B field  */
         //pG->U[k][j][is-i].B1c = 0.0 + pG->U[k][j][is].B1c * s;
-        pG->U[k][j][is-i].B1c = pG->U[k][j][is].B1c;
-        Bt = 0; //sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+        //pG->U[k][j][is-i].B1c = pG->U[k][j][is].B1c;
+        //Bt = 0; //sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
         //pG->U[k][j][is-i].B2c = Bt + (pG->U[k][j][is].B2c - Bt) * s;
-        pG->U[k][j][is-i].B2c = pG->U[k][j][is].B2c;
-        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-        pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is].B3c - Bt) * s;
+        //pG->U[k][j][is-i].B2c = pG->U[k][j][is].B2c;
+        //Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        //pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is].B3c - Bt) * s;
 
         /* Set magnetic field const...?  */
         /*
@@ -2186,6 +2187,8 @@ static void bc_ix1(GridS *pG)
       }
     }
   } // End loop over grid cells
+
+  return; // TODO: end here
 
 #ifdef MHD
   /* B1i is not set at i=is-nghost */
