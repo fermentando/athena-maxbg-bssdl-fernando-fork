@@ -2115,80 +2115,51 @@ static void bc_ix1(GridS *pG)
       for (i=1; i<=nghost; i++) {
         // Set per default everything to first cell
         pG->U[k][j][is-i] = pG->U[k][j][is];
-        
-
 #if (NSCALARS > 0)
         pG->U[k][j][is - i].s[0] = 0.0;
 #endif
-
-        /* Linear interpolation between wished and last values */
-        s = (nghost - i) / ((Real)nghost);
-        rho = rhowind + (pG->U[k][j][is].d  - rhowind) * s;
-        pG->U[k][j][is-i].d  = rho;
-        vx = vflow + (MAX(TINY_NUMBER,pG->U[k][j][is].M1 / pG->U[k][j][is].d)- vflow) * s;
-        pG->U[k][j][is-i].M1 = vx * rho;
-        pG->U[k][j][is-i].M2 = pG->U[k][j][is].M2 / pG->U[k][j][is].d * s * rho;
-        pG->U[k][j][is-i].M3 = pG->U[k][j][is].M3 / pG->U[k][j][is].d * s * rho;
-
-#ifndef ISOTHERMAL
-        /* Calculate pressure in domain for interpolation */
-        pressis = pG->U[k][j][is].E - 0.5*(SQR(pG->U[k][j][is].M1)+ \
-                                           SQR(pG->U[k][j][is].M2) +  \
-                                           SQR(pG->U[k][j][is].M3))/pG->U[k][j][is].d;
-
-#ifdef MHD
-        pressis -= 0.5*(SQR(pG->U[k][j][is].B1c)
-                        + SQR(pG->U[k][j][is].B2c)
-                        + SQR(pG->U[k][j][is].B3c));
-#endif /* MHD */
-        pressis *= Gamma_1;
-        //pressis = MAX(pressis,TINY_NUMBER);
-
-        press = presswind + (presswind - pressis) * s;
-        //press = MAX(press,TINY_NUMBER);
-        pG->U[k][j][is-i].E = press / Gamma_1;
-
-        pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\
-                                      SQR(pG->U[k][j][is-i].M2) +       \
-                                      SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
-
-        if(j == js && k == ks)
-          printf("%.2f,\t P = %.3e,\t Vx = %.3e,\t Vis = %.3e,\t Vflow = %.3e\n",
-                 s,pressis / press, vx,
-                 pG->U[k][j][is].M1 / pG->U[k][j][is].d,vflow);
-
-
-#endif  /* not ISOTHERMAL */
-#ifdef MHD
-        /* Try to interpolate also B field  */
-        //pG->U[k][j][is-i].B1c = 0.0 + pG->U[k][j][is].B1c * s;
-        //pG->U[k][j][is-i].B1c = pG->U[k][j][is].B1c;
-        //Bt = 0; //sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-        //pG->U[k][j][is-i].B2c = Bt + (pG->U[k][j][is].B2c - Bt) * s;
-        //pG->U[k][j][is-i].B2c = pG->U[k][j][is].B2c;
-        //Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-        //pG->U[k][j][is-i].B3c = Bt + (pG->U[k][j][is].B3c - Bt) * s;
-
-        /* Set magnetic field const...?  */
-        /*
-        pG->U[k][j][is-i].B1c = 0.0;
-        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-        pG->U[k][j][is-i].B2c = Bt;
-        Bt = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-        pG->U[k][j][is-i].B3c = Bt;
-        */
-
-
-        pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c)
-                                     +SQR(pG->U[k][j][is-i].B2c)
-                                     +SQR(pG->U[k][j][is-i].B3c));
-
-#endif
       }
+
+      i = nghost;
+      pG->U[k][j][is-i].d = rhowind;
+      pG->U[k][j][is-i].M1 = rhowind * vflow;
+
+      pG->U[k][j][is-i].E = presswind / Gamma_1;
+
+#ifdef MHD
+      Bt = sqrt(2.0 * presswind / betaout_z);
+      pG->U[k][j][is-i].B3c = Bt;
+      pG->B3i[k][j][is-i] = Bt;
+      //pG->B3i[k][j][is-i+1] = Bt;
+      pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c)
+                                   +SQR(pG->U[k][j][is-i].B2c)
+                                   +SQR(pG->U[k][j][is-i].B3c));
+#endif
+      
+      pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\
+                                    SQR(pG->U[k][j][is-i].M2) +       \
+                                    SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
+
+      if(j == js && k == ks)
+        printf("%d,\t Erat = %.3e,\t Vx = %.3e,\t Vis = %.3e,\t Vflow = %.3e\n",
+               is - i,pG->U[k][j][is].E / pG->U[k][j][is-i].E, vflow,
+               pG->U[k][j][is].M1 / pG->U[k][j][is].d,vflow);
     }
-  } // End loop over grid cells
+  }
 
   return; // TODO: end here
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        if(pG->U[k][j][is-i].M1 < 1e-3)
+          printf("%d %d %d %e\n", k, j, is - i, pG->U[k][j][is-i].M1);
+      }
+    }
+  }
+
+
+
 
 #ifdef MHD
   /* B1i is not set at i=is-nghost */
