@@ -28,7 +28,7 @@
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-//#define EXPAND_DOMAIN        // Expand domain while moving out
+#define EXPAND_DOMAIN        // Expand domain while moving out
 //#define INSTANTCOOL
 #define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
@@ -237,7 +237,7 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
-  // vflow = 0; // Uncomment this for constantly outflowing (fully entrained) test
+  //vflow = 0.0 * vflow0; // Uncomment this for constantly outflowing (fully entrained) test
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
