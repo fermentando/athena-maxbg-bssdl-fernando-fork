@@ -1057,12 +1057,11 @@ void Userwork_in_loop(MeshS *pM)
     dvx = 0.0;
   }
 
-  /*  
-  if(dvx > 0.01) {
-    dvx = 0.01;
-    ath_pout(0,"[bad dvx:] %0.15e setting to 0.01\n",dvx);
-  }
-  */
+  /* Enforcing ceiling to  shift */
+  /* if(dvx > 0.05) {
+    dvx = 0.05;
+    ath_pout(0,"[bad dvx:] %0.15e setting to 0.05\n",dvx);
+    } */
 
   if(dvx > 0.0){
     expt = floor(log10(dvx));
@@ -1420,7 +1419,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
 
-    if (nfloor > 50000)
+    if (nfloor > 1000)
       ath_error("[report_nans]: Too many floored cells.\n");
   }
 
@@ -2140,10 +2139,12 @@ static void bc_ix1(GridS *pG)
                                     SQR(pG->U[k][j][is-i].M2) +       \
                                     SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
 
+      /*
       if(j == js && k == ks)
         printf("%d,\t Erat = %.3e,\t Vx = %.3e,\t Vis = %.3e,\t Vflow = %.3e\n",
                is - i,pG->U[k][j][is].E / pG->U[k][j][is-i].E, vflow,
                pG->U[k][j][is].M1 / pG->U[k][j][is].d,vflow);
+      */
     }
   }
 
