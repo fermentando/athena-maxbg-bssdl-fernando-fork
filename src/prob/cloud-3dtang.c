@@ -2090,113 +2090,199 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
  *
  *----------------------------------------------------------------------------*/
 
-static void bc_ix1(GridS *pG)
+
+static void bc_ix1(GridS *pGrid)
 {
-  int is = pG->is;
-  int js = pG->js, je = pG->je;
-  int ks = pG->ks, ke = pG->ke;
+  int is = pGrid->is;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
-  Real pressis;        // values in the domain
-  Real rhowind, presswind;        // values on the boundary
-  Real vx, rho, press; // current values
-  Real x1, x2, x3, r, cx1;
-  Real s, Bt, Eb;
+  Real presswind = Gamma_1 + dp;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
+  Real x1, x2, x3, r;
+  Real Bz = sqrt(2.0 * presswind / betaout_z);
+  Real By = sqrt(2.0 * presswind / betaout_y);
 #endif
-
-  rhowind = 1.0;
-  presswind = Gamma_1 + dp;
-
 
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
-        // Set per default everything to first cell
-        pG->U[k][j][is-i] = pG->U[k][j][is];
+        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+
 #if (NSCALARS > 0)
-        pG->U[k][j][is - i].s[0] = 0.0;
+        pGrid->U[k][j][i].s[0] = 0.0;
 #endif
-      }
 
-      i = nghost;
-      pG->U[k][j][is-i].d = rhowind;
-      pG->U[k][j][is-i].M1 = rhowind * vflow;
-
-      pG->U[k][j][is-i].E = presswind / Gamma_1;
-
+        pGrid->U[k][j][is-i].d  = 1.0;
+        pGrid->U[k][j][is-i].M1 = 1.0 * vflow;
+        pGrid->U[k][j][is-i].M2 = 0.0;
+        pGrid->U[k][j][is-i].M3 = 0.0;
+        pGrid->U[k][j][is-i].E  = presswind / Gamma_1 + 0.5*SQR(vflow);
 #ifdef MHD
-      Bt = sqrt(2.0 * presswind / betaout_z);
-      pG->U[k][j][is-i].B3c = Bt;
-      pG->B3i[k][j][is-i] = Bt;
-      //pG->B3i[k][j][is-i+1] = Bt;
-      pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c)
-                                   +SQR(pG->U[k][j][is-i].B2c)
-                                   +SQR(pG->U[k][j][is-i].B3c));
+        pGrid->U[k][j][is-i].B1c = 0.0;
+        pGrid->U[k][j][is-i].B2c = By;
+        pGrid->U[k][j][is-i].B3c = Bz; //bz;
+        if(i == 1)
+          pGrid->U[k][j][is-i].B1c = 0.5*pGrid->B1i[k][j][is];
+
+        pGrid->U[k][j][is-i].E  += 0.5*(SQR(pGrid->U[k][j][is-i].B1c)
+                                        +SQR(pGrid->U[k][j][is-i].B2c)
+                                        +SQR(pGrid->U[k][j][is-i].B3c));
 #endif
-      
-      pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\
-                                    SQR(pG->U[k][j][is-i].M2) +       \
-                                    SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d;
-
-      /*
-      if(j == js && k == ks)
-        printf("%d,\t Erat = %.3e,\t Vx = %.3e,\t Vis = %.3e,\t Vflow = %.3e\n",
-               is - i,pG->U[k][j][is].E / pG->U[k][j][is-i].E, vflow,
-               pG->U[k][j][is].M1 / pG->U[k][j][is].d,vflow);
-      */
-    }
-  }
-
-  return; // TODO: end here
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        if(pG->U[k][j][is-i].M1 < 1e-3)
-          printf("%d %d %d %e\n", k, j, is - i, pG->U[k][j][is-i].M1);
       }
     }
   }
 
 
-
-
 #ifdef MHD
-  /* B1i is not set at i=is-nghost */
+/* B1i is not set at i=is-nghost */
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<nghost; i++) {
-        pG->B1i[k][j][i] = 0.5 * (pG->U[k][j][i].B1c + pG->U[k][j][i - 1].B1c);
-        //pG->B1i[k][j][i] = 0.0;
+        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        x1 -= 0.5 * pGrid->dx1;
+        r = sqrt(x1*x1+x2*x2);
+
+        pGrid->B1i[k][j][i] = 0.0;
       }
     }
   }
 
-  if (pG->Nx[1] > 1) ju=je+1; else ju=je;
+  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=ju; j++) {
       for (i=0; i<nghost; i++) {
-        pG->B2i[k][j][i] = 0.5 * (pG->U[k][j][i].B2c + pG->U[k][j][i - 1].B2c);
-        //pG->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout_y);
+        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        x2 -= 0.5 * pGrid->dx2;
+        r = sqrt(x1*x1+x2*x2);
+
+        pGrid->B2i[k][j][i] = By;
       }
     }
   }
 
-  if (pG->Nx[2] > 1) ku=ke+1; else ku=ke;
+  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
   for (k=ks; k<=ku; k++) {
     for (j=js; j<=je; j++) {
       for (i=0; i<nghost; i++) {
-        pG->B3i[k][j][i] = 0.5 * (pG->U[k][j][i].B3c + pG->U[k][j][i - 1].B3c);
-        //pG->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        pGrid->B3i[k][j][i] = Bz;
       }
     }
   }
 #endif /* MHD */
 
-
   return;
 }
+
+
+/* static void bc_ix1(GridS *pG) */
+/* { */
+/*   int is = pG->is; */
+/*   int js = pG->js, je = pG->je; */
+/*   int ks = pG->ks, ke = pG->ke; */
+/*   int i,j,k; */
+/*   Real pressis;        // values in the domain */
+/*   Real rhowind, presswind;        // values on the boundary */
+/*   Real vx, rho, press; // current values */
+/*   Real x1, x2, x3, r, cx1; */
+/*   Real s, Bt, Eb; */
+/* #ifdef MHD */
+/*   int ju, ku; /\* j-upper, k-upper *\/ */
+/* #endif */
+
+/*   rhowind = 1.0; */
+/*   presswind = Gamma_1 + dp; */
+
+
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+/*         // Set per default everything to first cell */
+/*         pG->U[k][j][is-i] = pG->U[k][j][is]; */
+/* #if (NSCALARS > 0) */
+/*         pG->U[k][j][is - i].s[0] = 0.0; */
+/* #endif */
+/*       } */
+
+/*       i = nghost; */
+/*       pG->U[k][j][is-i].d = rhowind; */
+/*       pG->U[k][j][is-i].M1 = rhowind * vflow; */
+
+/*       pG->U[k][j][is-i].E = presswind / Gamma_1; */
+
+/* #ifdef MHD */
+/*       Bt = sqrt(2.0 * presswind / betaout_z); */
+/*       pG->U[k][j][is-i].B3c = Bt; */
+/*       pG->B3i[k][j][is-i] = Bt; */
+/*       //pG->B3i[k][j][is-i+1] = Bt; */
+/*       pG->U[k][j][is-i].E  += 0.5*(SQR(pG->U[k][j][is-i].B1c) */
+/*                                    +SQR(pG->U[k][j][is-i].B2c) */
+/*                                    +SQR(pG->U[k][j][is-i].B3c)); */
+/* #endif */
+      
+/*       pG->U[k][j][is-i].E += 0.5 * (SQR(pG->U[k][j][is-i].M1) +\ */
+/*                                     SQR(pG->U[k][j][is-i].M2) +       \ */
+/*                                     SQR(pG->U[k][j][is-i].M3)) / pG->U[k][j][is-i].d; */
+
+/*       /\* */
+/*       if(j == js && k == ks) */
+/*         printf("%d,\t Erat = %.3e,\t Vx = %.3e,\t Vis = %.3e,\t Vflow = %.3e\n", */
+/*                is - i,pG->U[k][j][is].E / pG->U[k][j][is-i].E, vflow, */
+/*                pG->U[k][j][is].M1 / pG->U[k][j][is].d,vflow); */
+/*       *\/ */
+/*     } */
+/*   } */
+
+/*   return; // TODO: end here */
+
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<=nghost; i++) { */
+/*         if(pG->U[k][j][is-i].M1 < 1e-3) */
+/*           printf("%d %d %d %e\n", k, j, is - i, pG->U[k][j][is-i].M1); */
+/*       } */
+/*     } */
+/*   } */
+
+
+
+
+/* #ifdef MHD */
+/*   /\* B1i is not set at i=is-nghost *\/ */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=1; i<nghost; i++) { */
+/*         pG->B1i[k][j][i] = 0.5 * (pG->U[k][j][i].B1c + pG->U[k][j][i - 1].B1c); */
+/*         //pG->B1i[k][j][i] = 0.0; */
+/*       } */
+/*     } */
+/*   } */
+
+/*   if (pG->Nx[1] > 1) ju=je+1; else ju=je; */
+/*   for (k=ks; k<=ke; k++) { */
+/*     for (j=js; j<=ju; j++) { */
+/*       for (i=0; i<nghost; i++) { */
+/*         pG->B2i[k][j][i] = 0.5 * (pG->U[k][j][i].B2c + pG->U[k][j][i - 1].B2c); */
+/*         //pG->B2i[k][j][i] = sqrt(2.0 * Gamma_1 / betaout_y); */
+/*       } */
+/*     } */
+/*   } */
+
+/*   if (pG->Nx[2] > 1) ku=ke+1; else ku=ke; */
+/*   for (k=ks; k<=ku; k++) { */
+/*     for (j=js; j<=je; j++) { */
+/*       for (i=0; i<nghost; i++) { */
+/*         pG->B3i[k][j][i] = 0.5 * (pG->U[k][j][i].B3c + pG->U[k][j][i - 1].B3c); */
+/*         //pG->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z); */
+/*       } */
+/*     } */
+/*   } */
+/* #endif /\* MHD *\/ */
+
+
+/*   return; */
+/* } */
 
 static void bc_ox1(GridS *pGrid)
 {
