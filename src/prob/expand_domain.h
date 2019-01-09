@@ -18,8 +18,20 @@ static const Real ed_exp_vz = -1;
 /* ======================================== */
 /*          Radially expanding box          */
 /* ======================================== */
+/*
 static const Real ed_exp_rho = -2;
 static const Real ed_exp_pressure = -10/3.; // Gamma * ed_exp_rho
+
+static const Real ed_exp_vx = 0.0;
+static const Real ed_exp_vy = -1;
+static const Real ed_exp_vz = -1;
+*/
+
+/* ======================================== */
+/*    Radially expanding with T=const.      */
+/* ======================================== */
+static const Real ed_exp_rho = -2;
+static const Real ed_exp_pressure = -2.; // Gamma * ed_exp_rho
 
 static const Real ed_exp_vx = 0.0;
 static const Real ed_exp_vy = -1;
