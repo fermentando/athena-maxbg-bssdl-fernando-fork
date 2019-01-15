@@ -31,7 +31,7 @@ static const Real ed_exp_vz = -1;
 /*    Radially expanding with T=const.      */
 /* ======================================== */
 static const Real ed_exp_rho = -2;
-static const Real ed_exp_pressure = -2.; // Gamma * ed_exp_rho
+static const Real ed_exp_pressure = -2.; // P = T * rho
 
 static const Real ed_exp_vx = 0.0;
 static const Real ed_exp_vy = -1;
