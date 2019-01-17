@@ -267,7 +267,6 @@ void problem(DomainS *pDomain)
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-  d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
   dens_conv = par_getd_def("problem", "dens_conv", 1.0);
 
@@ -840,7 +839,6 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-  d_MIN = par_getd_def("problem", "d_MIN", 1.e-4);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
 #ifdef MHD
