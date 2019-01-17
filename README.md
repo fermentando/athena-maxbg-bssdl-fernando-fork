@@ -63,7 +63,7 @@ betafloor       = 0.00   # not needed in HD1
 betain          = 10.0   # not needed in HD
 betaout         = 1e+20   # not needed in HD
 d_MIN           = 0.001 
-dp              = -0.6 # sets global pressure
+dp              = -0.6 # sets global pressure. P = Gamma - 1 + dp
 dr              = 0.046875 # border of cloud in units of r_cl
 drat            = 100.0 # density ratio
 dtmin           = 1e-09 
