@@ -36,11 +36,18 @@ def plotfit(T0, T1, Lambda, index, **kwargs):
 out_prefix = "WSS09_z0_Z1/"
 out_fn = "WSS09_z0_Z1.h"
 
+Tmin = 5e3   # Min T to consider
+Tmax = 1e8
+
+binnum_T = 31  # Bins to output in temperature direction
+binnum_d = 81  # Bins in density direction; needs to be # of bins provided
+
 # Reading in cooling data
 f = h5py.File("WSS09_CoolingTables/z_0.000.hdf5")
 d = f['Solar/Hydrogen_density_bins'][...]     # Densities
 T = f['Solar/Temperature_bins'][...]          # Temperatures
 Lambda_full = f['Solar/Net_cooling'][...].T   # Lambda(rho, T)
+f.close()
 print("Loaded Lambda data with shape `%s`" %(str(Lambda_full.shape)))
 
 ########################################
@@ -49,12 +56,6 @@ if not os.path.exists(s):
     os.makedirs(s)
 
 
-#Tmin = T[0]
-Tmin = 5e3
-Tmax = 1e8
-
-binnum_T = 31
-binnum_d = 81
 
 
 # fitdata[:,0] -- temperature bins
