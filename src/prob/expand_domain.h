@@ -3,37 +3,36 @@ Defining the scaling exponents for domain rescaling.
 */
 
 
+// Exponents of expansion. Enter in this order
+struct ed_exp_s {
+  Real rho;
+  Real pressure;
+  Real vx, vy, vz;
+};
+
 /* ======================================== */
 /*         Uniformly expanding box          */
 /* ======================================== */
-/*
-static const Real ed_exp_rho = -3;
-static const Real ed_exp_pressure = -5; // Gamma * ed_exp_rho
-
-static const Real ed_exp_vx = -1;
-static const Real ed_exp_vy = -1;
-static const Real ed_exp_vz = -1;
-*/
+// exp_P = Gamma * ed_exp_rho
+#define ED_UNIFORM {-3, -5, -1, -1, -1}
 
 /* ======================================== */
 /*          Radially expanding box          */
 /* ======================================== */
-/*
-static const Real ed_exp_rho = -2;
-static const Real ed_exp_pressure = -10/3.; // Gamma * ed_exp_rho
-
-static const Real ed_exp_vx = 0.0;
-static const Real ed_exp_vy = -1;
-static const Real ed_exp_vz = -1;
-*/
+// exp_P = Gamma * ed_exp_rho
+#define ED_RADIAL {-2, -10/3., 0, -1, -1}
 
 /* ======================================== */
 /*    Radially expanding with T=const.      */
 /* ======================================== */
-static const Real ed_exp_rho = -2;
-static const Real ed_exp_pressure = -2.; // P = T * rho
+// P = T * rho
+#define ED_RADIAL_ISOTHERMAL {-2, -2, 0, -1, -1}
 
-static const Real ed_exp_vx = 0.0;
-static const Real ed_exp_vy = -1;
-static const Real ed_exp_vz = -1;
+/* ----------------------------------------*/
+/*        Define active modes here         */
+/* ----------------------------------------*/
+static const struct ed_exp_s ed_exp[2] = {ED_RADIAL,ED_RADIAL_ISOTHERMAL};
 
+#undef ED_RADIAL
+#undef ED_RADIAL_ISOTHERMAL
+#undef ED_UNIFORM

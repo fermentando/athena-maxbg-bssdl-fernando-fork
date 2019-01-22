@@ -7,9 +7,17 @@
 #include "athena.h"
 #include "globals.h"
 #include "prototypes.h"
-#include "prob/expand_domain.h"
-
 #include "prob/math_functions.h"
+
+/* ----------- Define options here --------- */
+#define FOLLOW_CLOUD         // Moving reference frame
+#define REPORT_NANS          // Verbose
+#define ENERGY_COOLING       // Cooling
+//#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
+#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
+//#define INSTANTCOOL
+#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
+/* ----------------------------------------- */
 
 #ifdef MPI_PARALLEL
 #ifdef DOUBLE_PREC
@@ -23,13 +31,6 @@
 #include "particles/particle.h"
 #endif
 
-#define FOLLOW_CLOUD         // Moving reference frame
-#define REPORT_NANS          // Verbose
-#define ENERGY_COOLING       // Cooling
-//#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
-//#define INSTANTCOOL
-#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 //static void bc_ix2(GridS *pGrid);
@@ -37,8 +38,15 @@ static void bc_ox1(GridS *pGrid);
 //static void bc_ix3(GridS *pGrid);
 //static void bc_ox3(GridS *pGrid);
 
-static void check_div_b(GridS *pGrid);
+#ifdef EXPAND_DOMAIN
+#include "prob/expand_domain.h"
+// Define here modes of expanding domain
+//static const struct ed_exp_s ed_exp[] = {ed_exp_radial, ed_exp_radial_isothermal};
 
+//static const struct ed_exp_s ed_exp[] = { {xxxxx, -5, -1, -1, -1},  {-3, -5, -1, -1, -1}};
+#endif // end EXPAND_DOMAIN
+
+static void check_div_b(GridS *pGrid);
 
 /* add a force-free term to B */
 void add_term(Real3Vect ***A, GridS *pG,
@@ -54,12 +62,12 @@ Real3Vect get_e2(Real theta, Real phi);
 Real3Vect get_e3(Real theta, Real phi);
 
 /* custom hst quantities */
-static Real hst_m13(GridS *pG, int i, int j, int k);
-static Real hst_m110(GridS *pG, int i, int j, int k);
-static Real hst_mT2(GridS *pG, int i, int j, int k);
-static Real hst_Mx13(GridS *pG, int i, int j, int k);
+static Real hst_m13(const GridS *pG, const int i, const int j, const int k);
+static Real hst_m110(const GridS *pG, const int i, const int j, const int k);
+static Real hst_mT2(const GridS *pG, const int i, const int j, const int k);
+static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k);
 
-static Real hst_Erad(GridS *pG, int i, int j, int k);
+static Real hst_Erad(const GridS *pG, const int i, const int j, const int k);
 
 
 /* dye-weighted hst quantities */
@@ -144,7 +152,7 @@ static void radiate_energy(MeshS *pM);
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
-static Real hst_xshift(GridS *pG, int i, int j, int k);
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
 #endif  /* INSTANTCOOL */
 
 #ifdef FOLLOW_CLOUD
@@ -152,14 +160,15 @@ static Real cloud_mass_weighted_velocity(MeshS *pM);
 static void boost_frame(DomainS *pDomain, Real dv);
 static Real x_shift;
 
-static Real hst_xshift(GridS *pG, int i, int j, int k);
-static Real hst_vflow(GridS *pG, int i, int j, int k);
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 #endif
 #ifdef EXPAND_DOMAIN
 static void expand_domain(DomainS *pDomain, Real scale);
-static Real r0;
+static Real r0;     // starting position
+static Real rbreak; // radius of expansion mode change
 
-static Real hst_scalefac(GridS *pG, int i, int j, int k);
+static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k);
 #endif
 static Real scalefac = 1.0; 
 
@@ -240,7 +249,8 @@ void problem(DomainS *pDomain)
 
 #ifdef EXPAND_DOMAIN
   scalefac = 1.0;
-  r0 = par_getd("problem", "r0");
+  r0     = par_getd("problem", "r0");
+  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER); // default: mode 0
 #endif
 
 #ifdef MHD
@@ -906,6 +916,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 #ifdef EXPAND_DOMAIN
   dump_history_enroll_alt(hst_scalefac,  "scalefac");
   r0 = par_getd("problem", "r0");
+  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER);
 #endif
 
 #if (NSCALARS > 0)
@@ -1167,7 +1178,7 @@ void Userwork_in_loop(MeshS *pM)
     }
   }
 #ifdef EXPAND_DOMAIN
-  vflow = vflow * pow(new_scalefac / scalefac, ed_exp_vx);
+  vflow = vflow * pow(new_scalefac / scalefac, ed_exp[r0 + x_shift > rbreak].vx);
   scalefac = new_scalefac;
 #endif
 
@@ -1234,7 +1245,6 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 {
   int i, j, k;
   int is,ie,js,je,ks,ke;
-
   Real d;
 
   GridS *pGrid = pDomain->Grid;
@@ -1258,7 +1268,8 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   }
 
 #ifdef EXPAND_DOMAIN
-  x_shift += (vflow0 * pow(scalefac, ed_exp_vx) - vflow) * pDomain->Grid->dt;
+  x_shift += (vflow0 * pow(scalefac,
+                           ed_exp[r0 + x_shift > rbreak].vx) - vflow) * pDomain->Grid->dt;
 #else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
@@ -1275,6 +1286,7 @@ static void expand_domain(DomainS *pDomain, Real scale) {
   int is,ie,js,je,ks,ke;
   Real E0;
   GridS *pGrid = pDomain->Grid;
+  const struct ed_exp_s *cexp = &(ed_exp[r0 + x_shift > rbreak]);
 
 #ifdef MHD
   ath_error("Not thought about scaling magnetic fields yet...");
@@ -1293,14 +1305,14 @@ static void expand_domain(DomainS *pDomain, Real scale) {
         E0 = pGrid->U[k][j][i].E - 0.5 * (SQR(pGrid->U[k][j][i].M1) +\
                                           SQR(pGrid->U[k][j][i].M2) +\
                                           SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
-        pGrid->U[k][j][i].d *= pow(scale, ed_exp_rho);
+        pGrid->U[k][j][i].d *= pow(scale, ed_exp->rho);
 
-        pGrid->U[k][j][i].M1 *= pow(scale, ed_exp_rho + ed_exp_vx);
-        pGrid->U[k][j][i].M2 *= pow(scale, ed_exp_rho + ed_exp_vy);
-        pGrid->U[k][j][i].M3 *= pow(scale, ed_exp_rho + ed_exp_vz);
+        pGrid->U[k][j][i].M1 *= pow(scale, ed_exp->rho + ed_exp->vx);
+        pGrid->U[k][j][i].M2 *= pow(scale, ed_exp->rho + ed_exp->vy);
+        pGrid->U[k][j][i].M3 *= pow(scale, ed_exp->rho + ed_exp->vz);
 
         E0 = MAX(TINY_NUMBER, E0);
-        pGrid->U[k][j][i].E = E0 * pow(scale, ed_exp_pressure) +        \
+        pGrid->U[k][j][i].E = E0 * pow(scale, ed_exp->pressure) +        \
           0.5 * (SQR(pGrid->U[k][j][i].M1) +                            \
                  SQR(pGrid->U[k][j][i].M2) +                            \
                  SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
@@ -2098,20 +2110,20 @@ static Real nu_fun(const Real d, const Real T,
 
  *----------------------------------------------------------------------------*/
 
-static Real _hst_mcut(GridS *pG, int i, int j, int k, const Real frac)
+static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp_rho))
+  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho))
     return 0;
   return pG->U[k][j][i].d;
 }
 
 
-static Real hst_m13(GridS *pG, int i, int j, int k)
+static Real hst_m13(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 1/3.);
 }
 
-static Real hst_mT2(GridS *pG, int i, int j, int k)
+static Real hst_mT2(const GridS *pG, const int i, const int j, const int k)
 {
   Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
   const Real Tcl = (Gamma_1 + dp) / drat;
@@ -2121,41 +2133,41 @@ static Real hst_mT2(GridS *pG, int i, int j, int k)
 }
 
 
-static Real hst_m110(GridS *pG, int i, int j, int k)
+static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 0.1);
 }
 
 
-static Real hst_Mx13(GridS *pG, int i, int j, int k)
+static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
-  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp_rho))
+  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho))
     return 0;
   return pG->U[k][j][i].M1;
 }
 
-static Real hst_Erad(GridS *pG, int i, int j, int k)
+static Real hst_Erad(const GridS *pG, const int i, const int j, const int k)
 {
   return pG->U[k][j][i].Erad;
 }
 
 
 #ifdef FOLLOW_CLOUD
-static Real hst_xshift(GridS *pG, int i, int j, int k)
+static Real hst_xshift(const GridS *pG, const int i, const int j, const int k)
 {
   return x_shift;
 }
 #endif
 
 #ifdef FOLLOW_CLOUD
-static Real hst_vflow(GridS *pG, int i, int j, int k)
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k)
 {
   return vflow;
 }
 #endif
 
 #ifdef EXPAND_DOMAIN
-static Real hst_scalefac(GridS *pG, int i, int j, int k)
+static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
 {
   return scalefac;
 }
@@ -2306,7 +2318,7 @@ static void bc_ix1(GridS *pGrid)
         rho = 1.0;
 #endif /* FLOW_PROFILE */
 #ifdef EXPAND_DOMAIN
-        rho *= pow(scalefac, ed_exp_rho);
+        rho *= pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho);
 #endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
         pGrid->U[k][j][is-i].M1 = rho * vx;
@@ -2319,7 +2331,7 @@ static void bc_ix1(GridS *pGrid)
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
 #ifdef EXPAND_DOMAIN
-        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp_pressure);
+        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[r0 + x_shift > rbreak].pressure);
 #endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
