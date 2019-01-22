@@ -30,6 +30,9 @@
 #ifdef PARTICLES
 #include "particles/particle.h"
 #endif
+#ifdef EXPAND_DOMAIN
+#include "prob/expand_domain.h"
+#endif
 
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -38,13 +41,6 @@ static void bc_ox1(GridS *pGrid);
 //static void bc_ix3(GridS *pGrid);
 //static void bc_ox3(GridS *pGrid);
 
-#ifdef EXPAND_DOMAIN
-#include "prob/expand_domain.h"
-// Define here modes of expanding domain
-//static const struct ed_exp_s ed_exp[] = {ed_exp_radial, ed_exp_radial_isothermal};
-
-//static const struct ed_exp_s ed_exp[] = { {xxxxx, -5, -1, -1, -1},  {-3, -5, -1, -1, -1}};
-#endif // end EXPAND_DOMAIN
 
 static void check_div_b(GridS *pGrid);
 
@@ -165,6 +161,7 @@ static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 #endif
 #ifdef EXPAND_DOMAIN
 static void expand_domain(DomainS *pDomain, Real scale);
+static int ed_exp_mode();
 static Real r0;     // starting position
 static Real rbreak; // radius of expansion mode change
 
@@ -1159,8 +1156,8 @@ void Userwork_in_loop(MeshS *pM)
 
 #ifdef EXPAND_DOMAIN
   new_scalefac = (r0 + x_shift) / r0;
-  ath_pout(0,"[scalefac:] %0.10e [new:] %.10e [ratio - 1:] %.5e\n",
-           scalefac, new_scalefac, new_scalefac / scalefac - 1.);
+  ath_pout(0,"[scalefac:] %0.10e [new:] %.10e [ratio - 1:] %.5e [mode:] %d\n",
+           scalefac, new_scalefac, new_scalefac / scalefac - 1., ed_exp_mode());
 #endif
 
 
@@ -1178,7 +1175,7 @@ void Userwork_in_loop(MeshS *pM)
     }
   }
 #ifdef EXPAND_DOMAIN
-  vflow = vflow * pow(new_scalefac / scalefac, ed_exp[r0 + x_shift > rbreak].vx);
+  vflow = vflow * pow(new_scalefac / scalefac, ed_exp[ed_exp_mode()].vx);
   scalefac = new_scalefac;
 #endif
 
@@ -1234,6 +1231,7 @@ void Userwork_after_loop(MeshS *pM)
 /*==============================================================================
  * PHYSICS FUNCTIONS:
  * boost_frame()         - boost simulation frame by a velocity increment
+ * ed_exp_mode()         - returns current expansion mode
  * expand_domain()       - expands domain by scalefactor
  * report_nans()         - apply a ceiling and floor to the temperature
  * cloud_velocity()      - find the mass-weighted velocity of the cloud.
@@ -1269,7 +1267,7 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 
 #ifdef EXPAND_DOMAIN
   x_shift += (vflow0 * pow(scalefac,
-                           ed_exp[r0 + x_shift > rbreak].vx) - vflow) * pDomain->Grid->dt;
+                           ed_exp[ed_exp_mode()].vx) - vflow) * pDomain->Grid->dt;
 #else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
@@ -1281,12 +1279,16 @@ static void boost_frame(DomainS *pDomain, Real dvx)
 
 
 #ifdef EXPAND_DOMAIN
+static int ed_exp_mode()  {
+  return r0 + x_shift > rbreak;
+}
+
 static void expand_domain(DomainS *pDomain, Real scale) {
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real E0;
   GridS *pGrid = pDomain->Grid;
-  const struct ed_exp_s *cexp = &(ed_exp[r0 + x_shift > rbreak]);
+  const struct ed_exp_s *cexp = &(ed_exp[ed_exp_mode()]);
 
 #ifdef MHD
   ath_error("Not thought about scaling magnetic fields yet...");
@@ -2112,7 +2114,7 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho))
+  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp[ed_exp_mode()].rho))
     return 0;
   return pG->U[k][j][i].d;
 }
@@ -2141,7 +2143,7 @@ static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
-  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho))
+  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp[ed_exp_mode()].rho))
     return 0;
   return pG->U[k][j][i].M1;
 }
@@ -2318,7 +2320,7 @@ static void bc_ix1(GridS *pGrid)
         rho = 1.0;
 #endif /* FLOW_PROFILE */
 #ifdef EXPAND_DOMAIN
-        rho *= pow(scalefac, ed_exp[r0 + x_shift > rbreak].rho);
+        rho *= pow(scalefac, ed_exp[ed_exp_mode()].rho);
 #endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
         pGrid->U[k][j][is-i].M1 = rho * vx;
@@ -2331,7 +2333,7 @@ static void bc_ix1(GridS *pGrid)
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
 #ifdef EXPAND_DOMAIN
-        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[r0 + x_shift > rbreak].pressure);
+        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[ed_exp_mode()].pressure);
 #endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
