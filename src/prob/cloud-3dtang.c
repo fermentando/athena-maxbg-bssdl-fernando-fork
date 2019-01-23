@@ -1266,8 +1266,16 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   }
 
 #ifdef EXPAND_DOMAIN
-  x_shift += (vflow0 * pow(scalefac,
-                           ed_exp[ed_exp_mode()].vx) - vflow) * pDomain->Grid->dt;
+  /*
+    Was something like:
+        x_shift += (vflow0 * pow(scalefac,
+        ed_exp[ed_exp_mode()].vx) - vflow) * pDomain->Grid->dt;
+    but if ed_exp[0].vx != ed_exp[1].vx then this doesn't work.
+  */
+  if(ed_exp[ed_exp_mode()].vx)
+    ath_error("Expansion in vx for different scale factors not implemented yet.");
+  else
+    x_shift += (vflow0 - vflow) * pDomain->Grid->dt;
 #else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
@@ -2290,7 +2298,10 @@ static void bc_ix1(GridS *pGrid)
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
 #endif
-
+#ifdef EXPAND_DOMAIN
+  int eem = ed_exp_mode();
+  Real scalebreak = rbreak / r0;
+#endif
   vx = vy = vz = 0;
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
@@ -2320,7 +2331,9 @@ static void bc_ix1(GridS *pGrid)
         rho = 1.0;
 #endif /* FLOW_PROFILE */
 #ifdef EXPAND_DOMAIN
-        rho *= pow(scalefac, ed_exp[ed_exp_mode()].rho);
+        if(eem) // for continuity at r=rbreak
+          rho *= pow(scalebreak, ed_exp[0].rho - ed_exp[1].rho);
+        rho *= pow(scalefac, ed_exp[eem].rho);
 #endif /* EXPAND_DOMAIN */
         pGrid->U[k][j][is-i].d  = rho;
         pGrid->U[k][j][is-i].M1 = rho * vx;
@@ -2333,6 +2346,8 @@ static void bc_ix1(GridS *pGrid)
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
 #ifdef EXPAND_DOMAIN
+        if(eem)
+          pGrid->U[k][j][is-i].E *= pow(scalebreak, ed_exp[0].pressure - ed_exp[1].pressure);
         pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[ed_exp_mode()].pressure);
 #endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
