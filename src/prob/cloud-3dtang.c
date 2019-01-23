@@ -239,7 +239,7 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
-  // vflow = 0; // Uncomment this for constantly outflowing (fully entrained) test
+  // vflow = 0; // Uncomment this for constantly outflowing (fully entrained / comoving) test
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
