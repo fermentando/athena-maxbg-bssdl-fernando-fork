@@ -1294,7 +1294,7 @@ static int ed_exp_mode()  {
 static void expand_domain(DomainS *pDomain, Real scale) {
   int i, j, k;
   int is,ie,js,je,ks,ke;
-  Real E0;
+  Real E0, temp;
   GridS *pGrid = pDomain->Grid;
   const struct ed_exp_s *cexp = &(ed_exp[ed_exp_mode()]);
 
@@ -1321,8 +1321,13 @@ static void expand_domain(DomainS *pDomain, Real scale) {
         pGrid->U[k][j][i].M2 *= pow(scale, ed_exp->rho + ed_exp->vy);
         pGrid->U[k][j][i].M3 *= pow(scale, ed_exp->rho + ed_exp->vz);
 
-        E0 = MAX(TINY_NUMBER, E0);
-        pGrid->U[k][j][i].E = E0 * pow(scale, ed_exp->pressure) +        \
+        E0 = MAX(TINY_NUMBER, E0) * pow(scale, ed_exp->pressure);
+
+        // Enforce tfloor
+        temp = MAX(E0 * Gamma_1 / pGrid->U[k][j][i].d, MIN(tfloor, tfloor_cooling));
+        E0 = temp * pGrid->U[k][j][i].d / Gamma_1;
+
+        pGrid->U[k][j][i].E = E0 +                                      \
           0.5 * (SQR(pGrid->U[k][j][i].M1) +                            \
                  SQR(pGrid->U[k][j][i].M2) +                            \
                  SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
