@@ -239,7 +239,8 @@ void problem(DomainS *pDomain)
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
 #endif
   vflow0 = vflow;
-  // vflow = 0; // Uncomment this for constantly outflowing (fully entrained / comoving) test
+  /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
+  //vflow = 0.1 * vflow;
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
@@ -2305,7 +2306,7 @@ static void bc_ix1(GridS *pGrid)
 #endif
 #ifdef EXPAND_DOMAIN
   int eem = ed_exp_mode();
-  Real scalebreak = MAX(rbreak / r0, 0); // ..if rbreak < 0
+  Real scalebreak = rbreak / r0; // ..if rbreak, see below
 #endif
   vx = vy = vz = 0;
   for (k=ks; k<=ke; k++) {
@@ -2336,7 +2337,7 @@ static void bc_ix1(GridS *pGrid)
         rho = 1.0;
 #endif /* FLOW_PROFILE */
 #ifdef EXPAND_DOMAIN
-        if(eem) // for continuity at r=rbreak
+        if(eem && (scalebreak > 0)) // for continuity at r=rbreak
           rho *= pow(scalebreak, ed_exp[0].rho - ed_exp[1].rho);
         rho *= pow(scalefac, ed_exp[eem].rho);
 #endif /* EXPAND_DOMAIN */
@@ -2351,7 +2352,7 @@ static void bc_ix1(GridS *pGrid)
 #else
         pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
 #ifdef EXPAND_DOMAIN
-        if(eem)
+        if(eem && (scalebreak > 0))
           pGrid->U[k][j][is-i].E *= pow(scalebreak, ed_exp[0].pressure - ed_exp[1].pressure);
         pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[ed_exp_mode()].pressure);
 #endif // EXPAND_DOMAIN
