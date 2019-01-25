@@ -2305,7 +2305,7 @@ static void bc_ix1(GridS *pGrid)
 #endif
 #ifdef EXPAND_DOMAIN
   int eem = ed_exp_mode();
-  Real scalebreak = rbreak / r0;
+  Real scalebreak = MAX(rbreak / r0, 0); // ..if rbreak < 0
 #endif
   vx = vy = vz = 0;
   for (k=ks; k<=ke; k++) {
