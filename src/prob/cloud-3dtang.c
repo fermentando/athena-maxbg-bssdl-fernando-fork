@@ -1315,13 +1315,13 @@ static void expand_domain(DomainS *pDomain, Real scale) {
         E0 = pGrid->U[k][j][i].E - 0.5 * (SQR(pGrid->U[k][j][i].M1) +\
                                           SQR(pGrid->U[k][j][i].M2) +\
                                           SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
-        pGrid->U[k][j][i].d *= pow(scale, ed_exp->rho);
+        pGrid->U[k][j][i].d *= pow(scale, cexp->rho);
 
-        pGrid->U[k][j][i].M1 *= pow(scale, ed_exp->rho + ed_exp->vx);
-        pGrid->U[k][j][i].M2 *= pow(scale, ed_exp->rho + ed_exp->vy);
-        pGrid->U[k][j][i].M3 *= pow(scale, ed_exp->rho + ed_exp->vz);
+        pGrid->U[k][j][i].M1 *= pow(scale, cexp->rho + cexp->vx);
+        pGrid->U[k][j][i].M2 *= pow(scale, cexp->rho + cexp->vy);
+        pGrid->U[k][j][i].M3 *= pow(scale, cexp->rho + cexp->vz);
 
-        E0 = MAX(TINY_NUMBER, E0) * pow(scale, ed_exp->pressure);
+        E0 = MAX(TINY_NUMBER, E0) * pow(scale, cexp->pressure);
 
         // Enforce tfloor
         temp = MAX(E0 * Gamma_1 / pGrid->U[k][j][i].d, MIN(tfloor, tfloor_cooling));
