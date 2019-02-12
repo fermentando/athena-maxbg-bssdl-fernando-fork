@@ -22,7 +22,7 @@
 #include "particles/particle.h"
 #endif
 
-#define FOLLOW_CLOUD
+//#define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
 //#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
@@ -604,7 +604,10 @@ void problem(DomainS *pDomain)
         pGrid->B3i[k][j][i] = 0.0;
         if(tangled){
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
+	  //bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
+	  bscale = 0.5+0.5*tanh((-x1/1.5 - 5)/r_cloud);
+	  if((k==ks) && (j==js) &&  (x1 < 0))
+	    printf("[bscale] %d %d %d, %.2f, %.5e\n", k, j, i, x1, bscale);
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
         }
