@@ -22,7 +22,7 @@
 #include "particles/particle.h"
 #endif
 
-//#define FOLLOW_CLOUD
+#define FOLLOW_CLOUD
 #define REPORT_NANS
 #define ENERGY_COOLING
 //#define FLOW_PROFILE   // Uncomment this line for changing v(r), rho(r),...
@@ -596,6 +596,7 @@ void problem(DomainS *pDomain)
       }
     }
   }
+  Real ascale;
 
   ku = (pGrid->Nx[2] > 1) ? ke+1 : ke; //so we don't go beyond array in 2d
   for (k=ks; k<=ku; k++) {
@@ -606,10 +607,14 @@ void problem(DomainS *pDomain)
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
 	  //bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
 	  bscale = 0.5+0.5*tanh((-x1/1.5 - 5)/r_cloud);
-	  if((k==ks) && (j==js) &&  (x1 < 0))
-	    printf("[bscale] %d %d %d, %.2f, %.5e\n", k, j, i, x1, bscale);
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
+	  // Otherwise add pressure to keep balance...?
+	  ascale = Bout_z * Bout_z * (1 - bscale * bscale) / (Gamma_1 + dp) + 1;
+	  pGrid->U[k][j][i].E += ascale * (Gamma_1 + dp);
+
+	  if((k==ks) && (j==js) &&  (x1 < 0))
+	    printf("[bscale] %d %d %d, %.2f, %.5e, %.5e\n", k, j, i, x1, bscale, ascale);
         }
         else{
           pGrid->B3i[k][j][i] = Bout_z;
