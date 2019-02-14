@@ -1126,7 +1126,7 @@ void Userwork_in_loop(MeshS *pM)
   // Artificial shift
   //dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
 
-  if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
+  if(fabs(dvx) > 100.01 || dvx < 0.0 || isnan(dvx)){ // TODO: some maximum shift is defined here...
     ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
     dvx = 0.0;
   }
