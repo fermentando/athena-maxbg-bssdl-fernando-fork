@@ -15,7 +15,7 @@
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
+//#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
 //#define INSTANTCOOL
 #define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 /* ----------------------------------------- */
@@ -2195,7 +2195,12 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-  if(pG->U[k][j][i].d < frac * drat * pow(scalefac, ed_exp[ed_exp_mode()].rho))
+#ifdef EXPAND_DOMAIN
+  Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
+#else
+  Real s = 1.0;
+#endif
+  if(pG->U[k][j][i].d < frac * drat * s)
     return 0;
   return pG->U[k][j][i].d;
 }
@@ -2224,7 +2229,12 @@ static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
-  if(pG->U[k][j][i].d < drat / 3. * pow(scalefac, ed_exp[ed_exp_mode()].rho))
+#ifdef EXPAND_DOMAIN
+  Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
+#else
+  Real s = 1.0;
+#endif
+  if(pG->U[k][j][i].d < drat / 3. * s)
     return 0;
   return pG->U[k][j][i].M1;
 }
