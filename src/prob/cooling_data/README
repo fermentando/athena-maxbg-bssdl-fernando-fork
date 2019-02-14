@@ -1,0 +1,2 @@
+Directory for tabulated cooling functions. 
+Tool in `tools/fit_cooling_data/` can generate the required header file.

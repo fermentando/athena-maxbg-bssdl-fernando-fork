@@ -1,5 +1,4 @@
-cloud crushing version of Mike
-
+cloud crushing version edited by Ryan, Mike, and Max.
 
 
 # Configure
