@@ -196,7 +196,7 @@ void problem(DomainS *pDomain)
 
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
-  Real bscale;
+  Real bscale, ascale;
   int tangled;
 #if (NSCALARS > 0)
   Real dye;
@@ -577,6 +577,8 @@ void problem(DomainS *pDomain)
 
   Bout_z = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
   Bout_y = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+  if(betaout_y < 10.)
+    ath_error("Strong By not fully supported yet. Need to change thermal pressure.");
 
   ju = (pGrid->Nx[1] > 1) ? je+1 : je;  //so we don't go beyond array in 2d 
   for (k=ks; k<=ke; k++) {
@@ -588,7 +590,6 @@ void problem(DomainS *pDomain)
           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B2i[k][j][i] = (A[k+1][j][i].x1 - A[k][j][i].x1)/pGrid->dx3 -
             (A[k][j][i+1].x3 - A[k][j][i].x3)/pGrid->dx1 + bscale * Bout_y;
-          //printf("1234.1234 %g %g\n", x1, pGrid->B2i[k][j][i]);
         }
         else{
           pGrid->B2i[k][j][i] = Bout_y;
@@ -606,8 +607,13 @@ void problem(DomainS *pDomain)
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           //bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           bscale = 0.5+0.5*tanh((-x1/1.5 - 5)/r_cloud);
-          if((k==ks) && (j==js) &&  (x1 < 0))
-            printf("[bscale] %d %d %d, %.2f, %.5e\n", k, j, i, x1, bscale);
+          ascale = 0.5 * SQR(Bout_z) * (1 - SQR(bscale)) / (Gamma_1 + dp) + 1;
+          pGrid->U[k][j][i].E += (ascale - 1) * (Gamma_1 + dp) / Gamma_1;
+          /*
+          if((k==ks) && (j==js) &&  (x1 < 10))
+            printf("[bscale] %d %d %d %.2f %.5e %.5e %e %e\n", k, j, i, x1, bscale, ascale,
+                   SQR(bscale * Bout_z)/2., ascale * (Gamma_1 + dp));
+          */
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
         }
