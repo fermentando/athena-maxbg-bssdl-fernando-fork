@@ -1739,6 +1739,9 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   const Real d = d0 * dens_conv;
   int interpolate = nfit_cool_d > 1;
 
+  if(T < tfloor_cooling)
+    return tfloor_cooling;
+
   Tref = sdT[nfit_cool_T-1];
   dref = sdd[nfit_cool_d-1] / dens_conv;
 
