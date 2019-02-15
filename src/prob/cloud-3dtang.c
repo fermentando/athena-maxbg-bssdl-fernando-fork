@@ -614,6 +614,9 @@ void problem(DomainS *pDomain)
             printf("[bscale] %d %d %d %.2f %.5e %.5e %e %e\n", k, j, i, x1, bscale, ascale,
                    SQR(bscale * Bout_z)/2., ascale * (Gamma_1 + dp));
           */
+          pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
+            (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
+
         }
         else{
           pGrid->B3i[k][j][i] = Bout_z;
