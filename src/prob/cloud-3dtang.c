@@ -165,7 +165,7 @@ static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
 #endif
 static Real scalefac = 1.0;
 
-static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud;
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 
@@ -240,6 +240,7 @@ void problem(DomainS *pDomain)
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
+  acc = par_getd_def("problem","acceleration",0.0);
 
 #ifdef EXPAND_DOMAIN
   scalefac = 1.0;
@@ -840,6 +841,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   vflow = par_getd("problem", "vflow");
   vflow0 = vflow;
 
+  acc = par_getd_def("problem","acceleration",0.0);
+
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
@@ -1181,6 +1184,9 @@ void Userwork_in_loop(MeshS *pM)
 #if ENERGY_HEATING == 1
   radiate_energy(pM);
 #endif
+
+  // Accelerate
+  vflow += acc * pM->dt;
 
   if (pM->dt < dtmin){
     data_output(pM,1);
