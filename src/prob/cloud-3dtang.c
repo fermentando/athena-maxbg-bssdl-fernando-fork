@@ -2392,12 +2392,7 @@ static void bc_ix1(GridS *pGrid)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
-        /*
-         This line was uncommented before...which seems to change the rest of
-         the function. Seems better that way, though...?
-         *but* caused MHD error!
-        */
-        // pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][is - i].s[0] = 0.0;
@@ -2434,7 +2429,7 @@ static void bc_ix1(GridS *pGrid)
 #ifdef EXPAND_DOMAIN
         if(eem && (scalebreak > 0))
           pGrid->U[k][j][is-i].E *= pow(scalebreak, ed_exp[0].pressure - ed_exp[1].pressure);
-        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[ed_exp_mode()].pressure);
+        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[eem].pressure);
 #endif // EXPAND_DOMAIN
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
@@ -2451,6 +2446,7 @@ static void bc_ix1(GridS *pGrid)
                                         +SQR(pGrid->U[k][j][is-i].B2c)
                                         +SQR(pGrid->U[k][j][is-i].B3c));
 #endif
+        assert(!isnan(pGrid->U[k][j][is-i].E));
       }
     }
   } // End loop over grid cells
