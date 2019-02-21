@@ -356,9 +356,11 @@ void problem(DomainS *pDomain)
   dump_history_enroll(hst_cBz, "<c * Bz>");
 #endif /* MHD */
   dump_history_enroll(hst_Sdye, "dye entropy");
+  /*
 #ifdef ENERGY_COOLING
   dump_history_enroll(hst_cstcool, "cs*tcool");
 #endif
+  */
 #endif /* NSCALARS */
 
 #ifdef REPORT_NANS
@@ -920,9 +922,11 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll(hst_Sdye, "dye entropy");
 #endif  /* NSCALARS */
 
+  /*
 #ifdef ENERGY_COOLING
   dump_history_enroll(hst_cstcool, "cs*tcool");
 #endif
+  */
 
 
   /* DANGER: make sure the order here matches the order in write_restart() */
@@ -1107,17 +1111,17 @@ void Userwork_in_loop(MeshS *pM)
   // Artificial shift
   //dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
 
-  if(fabs(dvx) > 100.01 || dvx < 0.0){ // TODO: some maximum shift is defined here...
+  if((dvx < 0.0) || isnan(dvx)){ 
     ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
     dvx = 0.0;
   }
 
-  /*  
-  if(dvx > 0.01) {
-    dvx = 0.01;
-    ath_pout(0,"[bad dvx:] %0.15e setting to 0.01\n",dvx);
+ // Maximum shift is defined here...
+  const Real dvx_max = 0.01;
+  if(dvx > dvx_max) {
+    ath_pout(0,"[too large dvx:] %0.15e setting to %.2f\n",dvx, dvx_max);
+    dvx = dvx_max;
   }
-  */
 
   if(dvx > 0.0){
     expt = floor(log10(dvx));
@@ -1317,6 +1321,10 @@ static void expand_domain(DomainS *pDomain, Real scale) {
                  SQR(pGrid->U[k][j][i].M2) +                            \
                  SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
 
+	if((pGrid->U[k][j][i].E < 0) || isnan(pGrid->U[k][j][i].E))
+	  ath_error("[expand_domain] E %e %e %e %e %e %e %e %e\n",
+		    pGrid->U[k][j][i].E, pGrid->U[k][j][i].M1, pGrid->U[k][j][i].M2,
+		    pGrid->U[k][j][i].M3, pGrid->U[k][j][i].d, temp, E0, scale);
 
         /*
         if((i == is) && ( k == ks) && (j == js)) {
@@ -1341,7 +1349,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real x1, x2, x3;
-  int V=0; //verbose off = 0
+  int V=1; //verbose off = 0
   int NO = 10;
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
@@ -1536,7 +1544,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   nfloor += nmag;
 #endif  /* MHD */
 
-  // if (fix == 0) {
+  if(nfloor > 0) {
 #ifdef MHD
     ath_pout(0, "[report_nans]: floored %d cells: %d P, %d d, %d v, %d beta.\n",
       nfloor, npress, nrho, nv, nmag);
@@ -1544,7 +1552,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     ath_pout(0, "[report_nans]: floored %d cells: %d P, %d d, %d v.\n",
       nfloor, npress, nrho, nv);
 #endif  /* MHD */
-    // }
+    }
 
 
   //  if ((nnan > 0 || nfloor -nmag > 30) && fix == 0) {
@@ -1639,7 +1647,8 @@ static Real sdLambda(const Real d0, const Real T)
     if (T >= sdT[iT])
       break;
   }
-  assert(iT >= 0);
+  if(iT < 0)
+    ath_error("[sdLambda] T %e d %e %e %d\n", T, d, sdT[0], iT);
 
   /* Find the density bin */
   if(d <= sdd[0]) {
@@ -1745,7 +1754,7 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   const Real d = d0 * dens_conv;
   int interpolate = nfit_cool_d > 1;
 
-  if(T < tfloor_cooling)
+  if(T <= tfloor_cooling)
     return tfloor_cooling;
 
   Tref = sdT[nfit_cool_T-1];
@@ -2452,7 +2461,10 @@ static void bc_ix1(GridS *pGrid)
                                         +SQR(pGrid->U[k][j][is-i].B2c)
                                         +SQR(pGrid->U[k][j][is-i].B3c));
 #endif
-        assert(!isnan(pGrid->U[k][j][is-i].E));
+	if((pGrid->U[k][j][is-i].E < 0) || isnan(pGrid->U[k][j][is-i].E))
+	  ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",
+		    pGrid->U[k][j][is-i].E, pGrid->U[k][j][is-i].M1, pGrid->U[k][j][is-i].M2,
+		    pGrid->U[k][j][is-i].M3, pGrid->U[k][j][is-i].d, k, j, is-i);
       }
     }
   } // End loop over grid cells
