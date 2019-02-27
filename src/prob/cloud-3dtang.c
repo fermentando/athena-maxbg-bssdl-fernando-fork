@@ -1117,10 +1117,10 @@ void Userwork_in_loop(MeshS *pM)
   }
 
  // Maximum shift is defined here...
-  const Real dvx_max = 0.01;
+  const Real dvx_max = 0.05;
   if(dvx > dvx_max) {
-    ath_pout(0,"[too large dvx:] %0.15e setting to %.2f\n",dvx, dvx_max);
-    dvx = dvx_max;
+    ath_pout(0,"[too large dvx:] %0.15e setting to %.2f\n",dvx, 0.0);
+    dvx = 0.0;
   }
 
   if(dvx > 0.0){
