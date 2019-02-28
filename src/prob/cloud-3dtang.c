@@ -368,27 +368,29 @@ void problem(DomainS *pDomain)
 #endif
 
   /* Initialize grid loading */
-  int Nx, Ny, Nz, ndim_file;
+  int Nx, Ny, Nz, ndim_file[3];
   int ii, jj, kk;
   Nx = pDomain->Nx[0]; Ny = pDomain->Nx[1]; Nz = pDomain->Nx[2];
   char* fn_rho = par_gets_def("problem", "load_grid_rho", "");
   Real *cloud_dat_rho;
   FILE* fp_rho = NULL;
+  int nreadwrite = 0;
   if((char)fn_rho[0]) {
 #ifdef FLOW_PROFILE
     ath_error("FLOW_PROFILE and grid loading not implemented yet.");
 #endif
-    ndim_file = par_geti("problem", "load_grid_ndim");
-    ath_pout(0, "Loading grid `%s` with %d cells (grid cells: [%d,%d,%d])\n",
-             fn_rho, ndim_file, Nx, Ny, Nz);
-    if((ndim_file > Nx) || (ndim_file > Ny) || (ndim_file > Nz))
-      ath_error("[read_grid]: Grid in file larger than ATHENA grid (%d versus %d, %d, %d).\n",
-                ndim_file, Nx, Ny, Nz);
+    ndim_file[0] = par_geti("problem", "load_grid_ndim_x1");
+    ndim_file[1] = par_geti("problem", "load_grid_ndim_x2");
+    ndim_file[2] = par_geti("problem", "load_grid_ndim_x3");
+    ath_pout(0, "Loading grid `%s` with (%d,%d,%d) cells (grid cells: [%d,%d,%d])\n",
+             fn_rho, ndim_file[0], ndim_file[1], ndim_file[2], Nx, Ny, Nz);
+    if((ndim_file[0] > Nx) || (ndim_file[1] > Ny) || (ndim_file[2] > Nz))
+      ath_error("[read_grid]: Grid in file larger than ATHENA grid.");
     fp_rho = fopen(fn_rho, "r");
     if(fp_rho == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_rho);
-    cloud_dat_rho = (Real*)malloc(sizeof(Real) * ndim_file * ndim_file * ndim_file);
+    cloud_dat_rho = (Real*)malloc(sizeof(Real) * ndim_file[2] * ndim_file[1] * ndim_file[0]);
     if(cloud_dat_rho == NULL) ath_error("[read_grid] Error allocating memory for rho.");
-    fread(cloud_dat_rho, sizeof(Real), ndim_file * ndim_file * ndim_file, fp_rho);
+    fread(cloud_dat_rho, sizeof(Real), ndim_file[0] * ndim_file[1] * ndim_file[2], fp_rho);
     fread(&rho, sizeof(Real), 1, fp_rho);
     if(!feof(fp_rho)) ath_error("[read_grid] Not eof for rho.");
   }   /* end grid loading */
@@ -434,20 +436,21 @@ void problem(DomainS *pDomain)
 
         /* Initialize cloud */
         if(fp_rho != NULL) { // read grid from file
-          ii = (int)(x1 / pGrid->dx1) + ndim_file / 2; //i - ((Nx - ndim_file) / 2);
-          jj = (int)(x2 / pGrid->dx2) + ndim_file / 2; //j - ((Ny - ndim_file) / 2);
-          kk = (int)(x3 / pGrid->dx3) + ndim_file / 2; //k - ((Nz - ndim_file) / 2);
-          if((ii > 0) && (ii < ndim_file) &&
-             (jj > 0) && (jj < ndim_file) &&
-             (kk > 0) && (kk < ndim_file)) {
-            rho = cloud_dat_rho[kk * ndim_file * ndim_file + jj * ndim_file + ii];
+          ii = (int)(x1 / pGrid->dx1) + ndim_file[0] / 2; //i - ((Nx - ndim_file) / 2);
+          jj = (int)(x2 / pGrid->dx2) + ndim_file[1] / 2; //j - ((Ny - ndim_file) / 2);
+          kk = (int)(x3 / pGrid->dx3) + ndim_file[2] / 2; //k - ((Nz - ndim_file) / 2);
+          if((ii >= 0) && (ii < ndim_file[0]) &&
+             (jj >= 0) && (jj < ndim_file[1]) &&
+             (kk >= 0) && (kk < ndim_file[2])) {
+            rho = cloud_dat_rho[kk * ndim_file[2] * ndim_file[1] + jj * ndim_file[1] + ii];
             if(rho < 0) ath_error("Found rho < 0 in grid file!");
             rho = rho * (drat - 1.0);
             dye = rho;
-            rho += 1.0; // also add wind density
-            vx  = vx * vflow;
+            rho += 1.0; // also add wind density --> @Cameron: you need to change this!
+            vx = 0.0; // Not necessarily valid if vflow > 0!
+            nreadwrite++;
           }
-        } else { // do not read grid from file
+        } else { //      begin: do not read grid from file
           if (r < r_cloud) {
 #ifdef FLOW_PROFILE
             if(iprint == 0) {
@@ -480,7 +483,7 @@ void problem(DomainS *pDomain)
             }
 #endif
           }
-        }
+        } //             end: do not read grid from file
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
@@ -514,10 +517,6 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].Erad = 0;
 #endif
 
-        /* printf("1337 %g %g %g %g %g %g\n", x1, pGrid->U[k][j][i].d, (Gamma_1 + dp) / rho, */
-        /*        vx, vy, vz);  */
-
-
       }
     }
   } /* end grid loops */
@@ -525,6 +524,9 @@ void problem(DomainS *pDomain)
   if(fp_rho != NULL) {
     fclose(fp_rho);
     free(cloud_dat_rho);
+    if(nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
+      ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
+                ndim_file[0] * ndim_file[1] * ndim_file[2]);
   }
 
   if(tangled){
