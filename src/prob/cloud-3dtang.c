@@ -93,6 +93,8 @@ static Real hst_cBz(const GridS *pG, const int i, const int j, const int k);
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
 
+static Real grav_pot(const Real x1, const Real x2, const Real x3);
+
 #ifdef PARTICLES
 static int parnumproc;
 
@@ -165,7 +167,8 @@ static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
 #endif
 static Real scalefac = 1.0;
 
-static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc;
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, \
+  r_cloud, acc, grav_acc;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 
@@ -241,6 +244,10 @@ void problem(DomainS *pDomain)
   x_shift = 0.0;
 #endif
   acc = par_getd_def("problem","acceleration",0.0);
+  grav_acc = par_getd_def("problem","grav_acc",0.0);
+
+  if(grav_acc != 0.0)
+    ExternalGravPot = grav_pot;
 
 #ifdef EXPAND_DOMAIN
   scalefac = 1.0;
@@ -263,11 +270,6 @@ void problem(DomainS *pDomain)
   l_cloud = par_getd_def("problem", "l_cloud", 0.0);
   dr = par_getd_def("problem", "dr", 0.0);
 
-  /*Real tfloor    = 1.0e-2 / drat;
-  Real tceil     = 100.0;
-  Real rhofloor  = 1.0e-2;
-  Real betafloor = 3.0e-3;
-  */
   // note that there's another tfloor in the cooling function 
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
@@ -844,6 +846,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   vflow0 = vflow;
 
   acc = par_getd_def("problem","acceleration",0.0);
+  grav_acc = par_getd_def("problem","grav_acc",0.0);
 
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
   tceil = par_getd_def("problem", "tceil", 100.);
@@ -2832,4 +2835,10 @@ void add_new_particles(MeshS *pM) {
 }
 
 #endif /* PARTICLES */
+
+/*  Function for gravitational potential */
+static Real grav_pot(const Real x1, const Real x2, const Real x3)
+{
+  return -grav_acc * x1;
+}
 
