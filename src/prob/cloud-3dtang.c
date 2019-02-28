@@ -372,34 +372,25 @@ void problem(DomainS *pDomain)
   int ii, jj, kk;
   Nx = pDomain->Nx[0]; Ny = pDomain->Nx[1]; Nz = pDomain->Nx[2];
   char* fn_rho = par_gets_def("problem", "load_grid_rho", "");
-  char* fn_vx;
-  Real *cloud_dat_rho, *cloud_dat_vx;
-  FILE* fp_rho = NULL; FILE* fp_vx = NULL;
+  Real *cloud_dat_rho;
+  FILE* fp_rho = NULL;
   if((char)fn_rho[0]) {
 #ifdef FLOW_PROFILE
     ath_error("FLOW_PROFILE and grid loading not implemented yet.");
 #endif
-    fn_vx = par_gets("problem", "load_grid_vx");
     ndim_file = par_geti("problem", "load_grid_ndim");
-    ath_pout(0, "Loading grid `%s` / `%s` with %d cells (grid cells: [%d,%d,%d])\n",
-             fn_rho, fn_vx, ndim_file, Nx, Ny, Nz);
+    ath_pout(0, "Loading grid `%s` with %d cells (grid cells: [%d,%d,%d])\n",
+             fn_rho, ndim_file, Nx, Ny, Nz);
     if((ndim_file > Nx) || (ndim_file > Ny) || (ndim_file > Nz))
       ath_error("[read_grid]: Grid in file larger than ATHENA grid (%d versus %d, %d, %d).\n",
                 ndim_file, Nx, Ny, Nz);
     fp_rho = fopen(fn_rho, "r");
     if(fp_rho == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_rho);
-    fp_vx = fopen(fn_vx, "r");
-    if(fp_vx == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_vx);
     cloud_dat_rho = (Real*)malloc(sizeof(Real) * ndim_file * ndim_file * ndim_file);
     if(cloud_dat_rho == NULL) ath_error("[read_grid] Error allocating memory for rho.");
     fread(cloud_dat_rho, sizeof(Real), ndim_file * ndim_file * ndim_file, fp_rho);
     fread(&rho, sizeof(Real), 1, fp_rho);
     if(!feof(fp_rho)) ath_error("[read_grid] Not eof for rho.");
-    cloud_dat_vx = (Real*)malloc(sizeof(Real) * ndim_file * ndim_file * ndim_file);
-    if(cloud_dat_vx == NULL) ath_error("[read_grid] Error allocating memory for vx.");
-    fread(cloud_dat_vx, sizeof(Real), ndim_file * ndim_file * ndim_file, fp_vx);
-    fread(&vx, sizeof(Real), 1, fp_vx);
-    if(!feof(fp_vx)) ath_error("[read_grid] Not eof for vx.");
   }   /* end grid loading */
 
 
@@ -450,7 +441,6 @@ void problem(DomainS *pDomain)
              (jj > 0) && (jj < ndim_file) &&
              (kk > 0) && (kk < ndim_file)) {
             rho = cloud_dat_rho[kk * ndim_file * ndim_file + jj * ndim_file + ii];
-            vx  =  cloud_dat_vx[kk * ndim_file * ndim_file + jj * ndim_file + ii];
             if(rho < 0) ath_error("Found rho < 0 in grid file!");
             rho = rho * (drat - 1.0);
             dye = rho;
@@ -534,9 +524,7 @@ void problem(DomainS *pDomain)
 
   if(fp_rho != NULL) {
     fclose(fp_rho);
-    fclose(fp_vx);
     free(cloud_dat_rho);
-    free(cloud_dat_vx);
   }
 
   if(tangled){
