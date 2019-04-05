@@ -1805,6 +1805,7 @@ static void integrate_cooling(GridS *pG)
       for (i=is; i<=ie; i++) {
 
         W = Cons_to_Prim(&(pG->U[k][j][i]));
+        pG->U[k][j][i].Erad = 0;
 
         /* find temp in keV */
         temp = W.P/W.d;
@@ -1824,7 +1825,8 @@ static void integrate_cooling(GridS *pG)
         U = Prim_to_Cons(&W);
 
         /* record cooled energy */
-        pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
+	// pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
+        pG->U[k][j][i].Erad = (pG->U[k][j][i].E - U.E) / pG->dt;
 
         pG->U[k][j][i].E = U.E;
 
@@ -1842,6 +1844,7 @@ static void integrate_cooling(GridS *pG)
   Radiate cooled energy over whole domain
  */
 static void radiate_energy(MeshS *pM) {
+  ath_error("Does not work right now.");
   Real Erad_total = 0;
   GridS *pG;
   int i, j, k, is, ie, js, je, ks, ke;
