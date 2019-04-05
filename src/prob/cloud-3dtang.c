@@ -439,9 +439,13 @@ void problem(DomainS *pDomain)
           ii = (int)(x1 / pGrid->dx1) + ndim_file[0] / 2; //i - ((Nx - ndim_file) / 2);
           jj = (int)(x2 / pGrid->dx2) + ndim_file[1] / 2; //j - ((Ny - ndim_file) / 2);
           kk = (int)(x3 / pGrid->dx3) + ndim_file[2] / 2; //k - ((Nz - ndim_file) / 2);
-          if((ii >= 0) && (ii < ndim_file[0]) &&
-             (jj >= 0) && (jj < ndim_file[1]) &&
-             (kk >= 0) && (kk < ndim_file[2])) {
+          //ii = i - is - ndim_file[0] / 2; //i - ((Nx - ndim_file) / 2);
+          //jj = j - is - ndim_file[1] / 2; //i - ((Nx - ndim_file) / 2);
+          //kk = k - is - ndim_file[2] / 2; //i - ((Nx - ndim_file) / 2);
+          if((ii > 0) && (ii < ndim_file[0]) &&
+             (jj > 0) && (jj < ndim_file[1]) &&
+             (kk > 0) && (kk < ndim_file[2])) {
+            printf("%d %d %d\n", ii, jj, kk);
             rho = cloud_dat_rho[kk * ndim_file[2] * ndim_file[1] + jj * ndim_file[1] + ii];
             if(rho < 0) ath_error("Found rho < 0 in grid file!");
             rho = rho * (drat - 1.0);
@@ -2519,12 +2523,12 @@ static void bc_ox1(GridS *pGrid)
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
         pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
-        if(pGrid->U[k][j][ie+i].M1 < 0.0){
-	  if(V && (NO > 0)) {
-	    printf("bc_ox1 %d %d %d %e\n",
-		   i, j, k, pGrid->U[k][j][ie+i].M1);
-	    NO--;
-	  }
+        if((pGrid->U[k][j][ie+i].M1 < 0.0) &&  (vflow > 1e-3)){
+          if(V && (NO > 0)) {
+            printf("bc_ox1 %d %d %d %e\n",
+                   i, j, k, pGrid->U[k][j][ie+i].M1);
+            NO--;
+          }
           pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d;
           pGrid->U[k][j][ie+i].M1 = 0.0;
         }
