@@ -642,6 +642,8 @@ void conduction_init(MeshS *pM)
   }
   if ((Temp = (Real***)calloc_3d_array(Nx3,Nx2,Nx1, sizeof(Real))) == NULL)
     goto on_error;
+  if ((Press = (Real***)calloc_3d_array(Nx3,Nx2,Nx1, sizeof(Real))) == NULL)
+    goto on_error;
   if ((Q = (Real3Vect***)calloc_3d_array(Nx3,Nx2,Nx1,sizeof(Real3Vect)))==NULL)
     goto on_error;
   return;
@@ -659,6 +661,7 @@ void conduction_init(MeshS *pM)
 void conduction_destruct(void)
 {
   if (Temp != NULL) free_3d_array(Temp);
+  if (Press != NULL) free_3d_array(Press);
   if (Q != NULL) free_3d_array(Q);
   return;
 }
