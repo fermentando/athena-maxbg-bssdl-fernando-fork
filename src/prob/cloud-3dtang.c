@@ -111,6 +111,15 @@ static int nan_dump_count;
 #include "prob/flow_profile/cc85_fit.h"
 #endif /* FLOW_PROFILE */
 
+#ifdef THERMAL_CONDUCTION
+Real KappaFun_i_constant(const Real d, const Real T,
+                         const Real x1, const Real x2, const Real x3);
+Real KappaFun_a_constant(const Real d, const Real T,
+                         const Real x1, const Real x2, const Real x3);
+static Real kappa_iso, kappa_aniso;
+#endif /* THERMAL_CONDUCTION */
+
+
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
@@ -293,6 +302,11 @@ void problem(DomainS *pDomain)
 #ifdef THERMAL_CONDUCTION
   kappa_iso = par_getd_def("problem","kappa_iso",0.0);
   kappa_aniso = par_getd_def("problem","kappa_aniso",0.0);
+
+  if(kappa_iso > 0.0)
+    KappaFun_i = &KappaFun_i_constant;
+  if(kappa_aniso > 0.0)
+    KappaFun_a = &KappaFun_a_constant;
 #endif
 
   iseed = -10;
@@ -859,6 +873,16 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   nu   = par_getd("problem","nu");
   NuFun_i = NULL;
   NuFun_a = nu_fun;
+#endif
+
+#ifdef THERMAL_CONDUCTION
+  kappa_iso = par_getd_def("problem","kappa_iso",0.0);
+  kappa_aniso = par_getd_def("problem","kappa_aniso",0.0);
+
+  if(kappa_iso > 0.0)
+    KappaFun_i = &KappaFun_i_constant;
+  if(kappa_aniso > 0.0)
+    KappaFun_a = &KappaFun_a_constant;
 #endif
 
 #ifdef PARTICLES
@@ -2829,4 +2853,22 @@ void add_new_particles(MeshS *pM) {
 }
 
 #endif /* PARTICLES */
+
+
+#ifdef THERMAL_CONDUCTION
+//         kappa = (*KappaFun_i)(pG->U[k][j][i].d, Temp[k][j][i], x1, x2, x3);
+
+Real KappaFun_i_constant(const Real d, const Real T,
+                         const Real x1, const Real x2, const Real x3) {
+  return kappa_iso;
+}
+
+
+Real KappaFun_a_constant(const Real d, const Real T,
+                         const Real x1, const Real x2, const Real x3) {
+  return kappa_aniso;
+}
+
+
+#endif /* THERMAL_CONDUCTION */
 
