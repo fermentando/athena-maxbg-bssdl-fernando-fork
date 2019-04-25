@@ -307,6 +307,8 @@ void problem(DomainS *pDomain)
     KappaFun_i = &KappaFun_i_constant;
   if(kappa_aniso > 0.0)
     KappaFun_a = &KappaFun_a_constant;
+
+  //printf("Kappa_fun_i %e\n", (*KappaFun_i)(1.,1.,1.,2.,3.));
 #endif
 
   iseed = -10;
