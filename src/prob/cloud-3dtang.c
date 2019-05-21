@@ -127,6 +127,7 @@ static Real kappa_iso, kappa_aniso;
 #include "prob/cooling_data/SD93_Z1.h"
 //#include "prob/cooling_data/denstest.h"
 //#include "prob/cooling_data/WSS09_z0_Z1.h"
+//#include "prob/cooling_data/powerlaw/alpha1.0.h"
 
 static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
