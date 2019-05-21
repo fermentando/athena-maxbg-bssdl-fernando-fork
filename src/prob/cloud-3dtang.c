@@ -1376,7 +1376,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real x1, x2, x3;
-  int V=1; //verbose off = 0
+  int V=0; //verbose off = 0
   int NO = 10;
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
