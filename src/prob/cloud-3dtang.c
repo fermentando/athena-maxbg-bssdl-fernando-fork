@@ -473,14 +473,6 @@ void problem(DomainS *pDomain)
           }
         } else { //      begin: do not read grid from file
           if (r < r_cloud) {
-#ifdef FLOW_PROFILE
-            if(iprint == 0) {
-              ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
-                       sqrt(drat) * r_cloud / vx,
-                       tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
-              iprint = 1;
-            }
-#endif
             vx   = -(x2/r_cloud) * v_rot;
             vy   =  (x1/r_cloud) * v_rot;
 
@@ -504,6 +496,20 @@ void problem(DomainS *pDomain)
             }
 #endif
           }
+
+          if((r < r_cloud) && (iprint == 0)) {
+#ifdef FLOW_PROFILE
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+                     sqrt(drat) * r_cloud / vx,
+                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
+#else
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+                     sqrt(drat) * r_cloud / vflow,
+                     tcool(drat , (Gamma_1 + dp) / drat));
+#endif
+            iprint = 1;
+          } /* endif printing */
+
         } //             end: do not read grid from file
 
         /* write values to the grid */
