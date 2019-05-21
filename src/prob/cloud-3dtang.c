@@ -124,10 +124,10 @@ static Real kappa_iso, kappa_aniso;
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 
-#include "prob/cooling_data/SD93_Z1.h"
+//#include "prob/cooling_data/SD93_Z1.h"
 //#include "prob/cooling_data/denstest.h"
 //#include "prob/cooling_data/WSS09_z0_Z1.h"
-//#include "prob/cooling_data/powerlaw/alpha1.0.h"
+#include "prob/cooling_data/powerlaw/alpha1.0.h"
 
 static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
@@ -503,9 +503,11 @@ void problem(DomainS *pDomain)
                      sqrt(drat) * r_cloud / vx,
                      tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
 #else
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g\n",
                      sqrt(drat) * r_cloud / vflow,
-                     tcool(drat , (Gamma_1 + dp) / drat));
+                     tcool(drat, (Gamma_1 + dp) / drat),
+                     (Gamma_1 + dp) / drat
+                     );
 #endif
             iprint = 1;
           } /* endif printing */

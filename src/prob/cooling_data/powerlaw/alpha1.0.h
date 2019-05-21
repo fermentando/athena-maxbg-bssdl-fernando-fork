@@ -20,18 +20,8 @@ static Real sdd[nfit_cool_d] = {
 };
 
 // Lambda_k
-/*
-In order to have the same Lambda(Tcl) use
-
-sdL = Lambda_old(Tcl) * (Tcl / T0)^(-1)
-
-where
-T0 = sdT[0] from above
-Lambda_old(Tcl) = 0.00030361776545242194 [with default values]
-Tcl = 0.0006666666666666676 [default values]
- */
 static const Real sdL[nfit_cool_d][nfit_cool_T] = {{
-    4.554266481786323e-06
+    0.068354918753368
 }};
 
 // alpha_k
