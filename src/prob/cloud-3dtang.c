@@ -124,10 +124,10 @@ static Real kappa_iso, kappa_aniso;
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 
-//#include "prob/cooling_data/SD93_Z1.h"
+#include "prob/cooling_data/SD93_Z1.h"
 //#include "prob/cooling_data/denstest.h"
 //#include "prob/cooling_data/WSS09_z0_Z1.h"
-#include "prob/cooling_data/powerlaw/alpha1.5.h"
+//#include "prob/cooling_data/powerlaw/alpha1.5.h"
 
 static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
@@ -148,7 +148,6 @@ static void integrate_cooling(GridS *pG);
 #if ENERGY_HEATING == 1
 static void radiate_energy(MeshS *pM);
 #endif
-static Real dens_conv;
 #endif  /* ENERGY_COOLING */
 
 #ifdef INSTANTCOOL
@@ -178,6 +177,7 @@ static Real scalefac = 1.0;
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
+static Real dens_conv;
 
 #ifdef VISCOSITY
 static Real nu_fun(const Real d, const Real T,
@@ -503,9 +503,14 @@ void problem(DomainS *pDomain)
                      sqrt(drat) * r_cloud / vx,
                      tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
 #else
+
             ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g\n",
                      sqrt(drat) * r_cloud / vflow,
+#ifdef ENERGY_COOLING
                      tcool(drat, (Gamma_1 + dp) / drat),
+#else
+               	      -1,
+#endif
                      (Gamma_1 + dp) / drat
                      );
 #endif
