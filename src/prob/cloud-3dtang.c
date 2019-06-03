@@ -232,7 +232,7 @@ void problem(DomainS *pDomain)
 
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
-  Real bscale;
+  Real bscale, ascale;
   int tangled;
 #if (NSCALARS > 0)
   Real dye;
@@ -541,7 +541,7 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
 #endif /* FLOW_PROFILE */
         pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx)+SQR(vy)+SQR(vz));
-#endif  /* ISOTHERMAL */
+#endif  /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][i].s[0] = dye;
@@ -649,6 +649,8 @@ void problem(DomainS *pDomain)
 
   Bout_z = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
   Bout_y = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+  if(betaout_y < 10.)
+    ath_error("Strong By not fully supported yet. Need to change thermal pressure.");
 
   ju = (pGrid->Nx[1] > 1) ? je+1 : je;  //so we don't go beyond array in 2d 
   for (k=ks; k<=ke; k++) {
@@ -660,7 +662,6 @@ void problem(DomainS *pDomain)
           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
           pGrid->B2i[k][j][i] = (A[k+1][j][i].x1 - A[k][j][i].x1)/pGrid->dx3 -
             (A[k][j][i+1].x3 - A[k][j][i].x3)/pGrid->dx1 + bscale * Bout_y;
-          //printf("1234.1234 %g %g\n", x1, pGrid->B2i[k][j][i]);
         }
         else{
           pGrid->B2i[k][j][i] = Bout_y;
@@ -676,9 +677,18 @@ void problem(DomainS *pDomain)
         pGrid->B3i[k][j][i] = 0.0;
         if(tangled){
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-           bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
+          //bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
+          bscale = 0.5+0.5*tanh((-x1/1.5 - 5)/r_cloud);
+          ascale = 0.5 * SQR(Bout_z) * (1 - SQR(bscale)) / (Gamma_1 + dp) + 1;
+          pGrid->U[k][j][i].E += (ascale - 1) * (Gamma_1 + dp) / Gamma_1;
+          /*
+          if((k==ks) && (j==js) &&  (x1 < 10))
+            printf("[bscale] %d %d %d %.2f %.5e %.5e %e %e\n", k, j, i, x1, bscale, ascale,
+                   SQR(bscale * Bout_z)/2., ascale * (Gamma_1 + dp));
+          */
           pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
             (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
+
         }
         else{
           pGrid->B3i[k][j][i] = Bout_z;
@@ -1150,12 +1160,11 @@ void Userwork_in_loop(MeshS *pM)
     dvx = 0.0;
   }
 
- // Maximum shift is defined here...
-  const Real dvx_max = 0.05;
-  if(dvx > dvx_max) {
-    ath_pout(0,"[too large dvx:] %0.15e setting to %.2f\n",dvx, 0.0);
-    dvx = 0.0;
-  }
+  /* Enforcing ceiling to  shift */
+  /* if(dvx > 0.05) {
+    dvx = 0.05;
+    ath_pout(0,"[bad dvx:] %0.15e setting to 0.05\n",dvx);
+    } */
 
   if(dvx > 0.0){
     expt = floor(log10(dvx));
@@ -1383,8 +1392,8 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int i, j, k;
   int is,ie,js,je,ks,ke;
   Real x1, x2, x3;
-  int V=0; //verbose off = 0
-  int NO = 10;
+  int V=1; //verbose off = 0
+  int NO = 5;
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
   int npress=0,   nrho=0,   nv=0,   nfloor; /* floor count */
@@ -1613,7 +1622,7 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
 
-    if (nfloor > 50000)
+    if (nfloor > 1000)
       ath_error("[report_nans]: Too many floored cells.\n");
   }
 
@@ -2425,72 +2434,39 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
  *
  *----------------------------------------------------------------------------*/
 
+
 static void bc_ix1(GridS *pGrid)
 {
   int is = pGrid->is;
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
-  Real vx, vy, vz, rho, cx1;
-  Real x1, x2, x3, r;
+  Real presswind = Gamma_1 + dp;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
+  Real x1, x2, x3, r;
+  Real Bz = sqrt(2.0 * presswind / betaout_z);
+  Real By = sqrt(2.0 * presswind / betaout_y);
 #endif
-#ifdef EXPAND_DOMAIN
-  int eem = ed_exp_mode();
-  Real scalebreak = rbreak / r0; // ..if rbreak, see below
-#endif
-  vx = vy = vz = 0;
+
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
         pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
-        pGrid->U[k][j][is - i].s[0] = 0.0;
+        pGrid->U[k][j][i].s[0] = 0.0;
 #endif
 
-#ifdef FLOW_PROFILE
-        cc_pos(pGrid,is - i,j,k,&x1,&x2,&x3);
-        cx1 = x1 + x_shift; // x_shift > 0
-        vx = flow_profile_velocity_x(cx1, x2, x3) + vflow; // v_flow < 0
-        vy = flow_profile_velocity_y(cx1, x2, x3);
-        vz = flow_profile_velocity_z(cx1, x2, x3);
-        rho = flow_profile_density(cx1, x2, x3);
-        /* if((k == ks) && (j == js)) */
-        /*   printf("1338 %g %g %g %g\n", cx1, rho, vx - vflow, vflow); */
-#else
-        vx = vflow;
-        rho = 1.0;
-#endif /* FLOW_PROFILE */
-#ifdef EXPAND_DOMAIN
-        if(eem && (scalebreak > 0)) // for continuity at r=rbreak
-          rho *= pow(scalebreak, ed_exp[0].rho - ed_exp[1].rho);
-        rho *= pow(scalefac, ed_exp[eem].rho);
-#endif /* EXPAND_DOMAIN */
-        pGrid->U[k][j][is-i].d  = rho;
-        pGrid->U[k][j][is-i].M1 = rho * vx;
-        pGrid->U[k][j][is-i].M2 = rho * vy;
-        pGrid->U[k][j][is-i].M3 = rho * vz;
-
-#ifndef ISOTHERMAL
-#ifdef FLOW_PROFILE
-        pGrid->U[k][j][is-i].E = flow_profile_pressure(cx1, x2, x3) / Gamma_1;
-#else
-        pGrid->U[k][j][is-i].E = 1.0 + dp / Gamma_1 ;
-#ifdef EXPAND_DOMAIN
-        if(eem && (scalebreak > 0))
-          pGrid->U[k][j][is-i].E *= pow(scalebreak, ed_exp[0].pressure - ed_exp[1].pressure);
-        pGrid->U[k][j][is-i].E *= pow(scalefac, ed_exp[eem].pressure);
-#endif // EXPAND_DOMAIN
-#endif /* FLOW_PROFILE */
-        pGrid->U[k][j][is-i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
-#endif  /* ISOTHERMAL */
-
+        pGrid->U[k][j][is-i].d  = 1.0;
+        pGrid->U[k][j][is-i].M1 = 1.0 * vflow;
+        pGrid->U[k][j][is-i].M2 = 0.0;
+        pGrid->U[k][j][is-i].M3 = 0.0;
+        pGrid->U[k][j][is-i].E  = presswind / Gamma_1 + 0.5*SQR(vflow);
 #ifdef MHD
         pGrid->U[k][j][is-i].B1c = 0.0;
-        pGrid->U[k][j][is-i].B2c = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-        pGrid->U[k][j][is-i].B3c = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        pGrid->U[k][j][is-i].B2c = By;
+        pGrid->U[k][j][is-i].B3c = Bz; //bz;
         if(i == 1)
           pGrid->U[k][j][is-i].B1c = 0.5*pGrid->B1i[k][j][is];
 
@@ -2504,8 +2480,8 @@ static void bc_ix1(GridS *pGrid)
 		    pGrid->U[k][j][is-i].M3, pGrid->U[k][j][is-i].d, k, j, is-i);
       }
     }
-  } // End loop over grid cells
-  //ath_pout(0, "[bc_ix1] rho = %.5e, scalefac = %.5e\n", rho, scalefac);
+  }
+
 
 #ifdef MHD
 /* B1i is not set at i=is-nghost */
@@ -2529,7 +2505,7 @@ static void bc_ix1(GridS *pGrid)
         x2 -= 0.5 * pGrid->dx2;
         r = sqrt(x1*x1+x2*x2);
 
-        pGrid->B2i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
+        pGrid->B2i[k][j][i] = By;
       }
     }
   }
@@ -2538,7 +2514,7 @@ static void bc_ix1(GridS *pGrid)
   for (k=ks; k<=ku; k++) {
     for (j=js; j<=je; j++) {
       for (i=0; i<nghost; i++) {
-        pGrid->B3i[k][j][i] = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
+        pGrid->B3i[k][j][i] = Bz;
       }
     }
   }
@@ -2553,7 +2529,7 @@ static void bc_ox1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
-  int V=0;
+  const int V=0;
   int NO=10;
 #ifdef MHD
   int ju, ku; /* j-upper, k-upper */
@@ -2562,8 +2538,10 @@ static void bc_ox1(GridS *pGrid)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=1; i<=nghost; i++) {
+
         pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
-        if((pGrid->U[k][j][ie+i].M1 < 0.0) &&  (vflow > 1e-3)){
+
+        if(pGrid->U[k][j][ie+i].M1 < 0.0){
           if(V && (NO > 0)) {
             printf("bc_ox1 %d %d %d %e\n",
                    i, j, k, pGrid->U[k][j][ie+i].M1);
