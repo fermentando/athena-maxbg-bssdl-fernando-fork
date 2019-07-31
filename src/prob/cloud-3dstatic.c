@@ -224,6 +224,14 @@ void problem(DomainS *pDomain)
 #if CUSTOM_BC == 1 /* shifted periodic */
   jshift = par_geti("domain1", "jshift");
   kshift = par_geti("domain1", "kshift");
+
+  if (pDomain->Disp[0] == 0)
+    bvals_mhd_fun(pDomain, left_x1,  bc_shifted_periodic_ix1);
+  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+    bvals_mhd_fun(pDomain, right_x1, bc_shifted_periodic_ox1);
+#else
+  if(par_geti_def("domain1", "jshift", -123) != -123)
+    ath_error("[init problem]: jshift found in config but CUSTOM_BC != 1.\n");
 #endif             /* end shifted periodic */
 #endif // CUSTOM_BC
 
