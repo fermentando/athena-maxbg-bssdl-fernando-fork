@@ -13,8 +13,9 @@
 /* ----------- Define options here --------- */
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
+#define CUSTOM_BC 1          // If defined use custom boundary conditions.
+                             //     1 = shifted periodic bcs
 //#define INSTANTCOOL
-#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 /* ----------------------------------------- */
 
 #ifdef MPI_PARALLEL
@@ -24,13 +25,6 @@
 #define MPI_RL MPI_FLOAT
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
-
-#ifdef PARTICLES
-#include "particles/particle.h"
-#endif
-#ifdef EXPAND_DOMAIN
-#include "prob/expand_domain.h"
-#endif
 
 Real randomreal2(Real min, Real max);
 static Real RandomNormal2(Real mu, Real sigma);
@@ -69,10 +63,17 @@ static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k);
 #ifdef ENERGY_COOLING
 static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k);
 #endif
-
-
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
+
+#ifdef CUSTOM_BC
+#if CUSTOM_BC == 1 /* shifted periodic */
+static int _shift_index(int i, int is, int ie, int ish);
+static void bc_shifted_periodic_ix1(GridS *pGrid);
+static void bc_shifted_periodic_ox1(GridS *pGrid);
+static int ishift, jshift, kshift;
+#endif             /* end shifted periodic */
+#endif // CUSTOM_BC
 
 
 #ifdef REPORT_NANS
@@ -106,18 +107,7 @@ static Real Yinv(const Real Y1, const int id);
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 
 static void integrate_cooling(GridS *pG);
-#if ENERGY_HEATING == 1
-static void radiate_energy(MeshS *pM);
-#endif
 #endif  /* ENERGY_COOLING */
-
-#ifdef FOLLOW_CLOUD
-static Real cloud_mass_weighted_velocity(MeshS *pM);
-static void boost_frame(DomainS *pDomain, Real dv);
-static Real x_shift;
-
-static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
-#endif
 
 static Real drat, dr,dp,tnotcool, r_cloud, acc;
 
@@ -229,6 +219,14 @@ void problem(DomainS *pDomain)
 #endif
   */
 #endif /* NSCALARS */
+
+#ifdef CUSTOM_BC
+#if CUSTOM_BC == 1 /* shifted periodic */
+  jshift = par_geti("domain1", "jshift");
+  kshift = par_geti("domain1", "kshift");
+#endif             /* end shifted periodic */
+#endif // CUSTOM_BC
+
 
 #ifdef REPORT_NANS
   nan_dump_count = 0;
@@ -1248,3 +1246,56 @@ static Real RandomNormal2(Real mu, Real sigma)
 
 
 
+/*----------------------------------------------------------------------------*/
+/* Boundary conditions
+
+   - bc_shifted_periodic_*   -- shifted periodic boundaries
+*/
+#ifdef CUSTOM_BC
+static int _shift_index(int i, int is, int ie, int ish) {
+  return (i - is + ish) % (ie - is + 1) + is;
+}
+
+static void bc_shifted_periodic_ix1(GridS *pGrid)
+{
+  int is = pGrid->is, ie = pGrid->ie;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+  int ck, cj;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        ck = _shift_index(k, ks, ke, kshift);
+        cj = _shift_index(j, js, je, jshift);
+        pGrid->U[k][j][is-i] = pGrid->U[ck][cj][ie-(i-1)];
+      }
+    }
+  }
+  return;
+}
+
+static void bc_shifted_periodic_ox1(GridS *pGrid)
+{
+  int is = pGrid->is, ie = pGrid->ie;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+  int ck, cj;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        ck = _shift_index(k, ks, ke, kshift);
+        cj = _shift_index(j, js, je, jshift);
+        pGrid->U[ck][cj][ie+i] = pGrid->U[k][j][is+(i-1)];
+      }
+    }
+  }
+
+  return;
+}
+
+
+#endif /* CUSTOM_BC */
