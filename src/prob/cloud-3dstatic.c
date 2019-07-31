@@ -13,8 +13,9 @@
 /* ----------- Define options here --------- */
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
-#define CUSTOM_BC 1          // If defined use custom boundary conditions.
+#define CUSTOM_BC 2          // If defined use custom boundary conditions.
                              //     1 = shifted periodic bcs
+                             //     2 = outflow with forced background
 //#define INSTANTCOOL
 /* ----------------------------------------- */
 
@@ -72,6 +73,11 @@ static int _shift_index(int i, int is, int ie, int ish);
 static void bc_shifted_periodic_ix1(GridS *pGrid);
 static void bc_shifted_periodic_ox1(GridS *pGrid);
 static int ishift, jshift, kshift;
+#elif CUSTOM_BC == 2
+static void bc_outflowmod_ix1(GridS *pGrid);
+static void bc_outflowmod_ox1(GridS *pGrid);
+#else
+#error "Unknown CUSTOM_BC."
 #endif             /* end shifted periodic */
 #endif // CUSTOM_BC
 
@@ -221,18 +227,28 @@ void problem(DomainS *pDomain)
 #endif /* NSCALARS */
 
 #ifdef CUSTOM_BC
-#if CUSTOM_BC == 1 /* shifted periodic */
+#if CUSTOM_BC == 1      /* shifted periodic */
   jshift = par_geti("domain1", "jshift");
   kshift = par_geti("domain1", "kshift");
 
+  ath_pout(0, "[init problem] Using shifted periodic boundary conditions with %d %d\n",
+           jshift, kshift);
   if (pDomain->Disp[0] == 0)
     bvals_mhd_fun(pDomain, left_x1,  bc_shifted_periodic_ix1);
   if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
     bvals_mhd_fun(pDomain, right_x1, bc_shifted_periodic_ox1);
+
+#elif CUSTOM_BC == 2 /* modified outflow */
+  ath_pout(0, "[init problem] Using modified outflowing bc.\n");
+
+  if (pDomain->Disp[0] == 0)
+    bvals_mhd_fun(pDomain, left_x1,  bc_outflowmod_ix1);
+  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+    bvals_mhd_fun(pDomain, right_x1, bc_outflowmod_ox1);
 #else
   if(par_geti_def("domain1", "jshift", -123) != -123)
     ath_error("[init problem]: jshift found in config but CUSTOM_BC != 1.\n");
-#endif             /* end shifted periodic */
+#endif
 #endif // CUSTOM_BC
 
 
@@ -280,7 +296,7 @@ void problem(DomainS *pDomain)
         }
 
         if((r < r_cloud) && (iprint == 0)) {
-          ath_pout(-1, "[init_problem] t_cool,cl = %g, Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
+          ath_pout(0, "[init_problem] t_cool,cl = %g, Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
 #ifdef ENERGY_COOLING
                    tcool(drat, (Gamma_1 + dp) / drat),
 #else
@@ -1257,9 +1273,13 @@ static Real RandomNormal2(Real mu, Real sigma)
 /*----------------------------------------------------------------------------*/
 /* Boundary conditions
 
-   - bc_shifted_periodic_*   -- shifted periodic boundaries
+    bc_shifted_periodic_*   -- shifted periodic boundaries    -- UNFINISHED
+    bc_outflow_mod_*        -- outflowing & forcd background  -- UNFINISHED
 */
 #ifdef CUSTOM_BC
+
+/* ---- shifted periodic boundaries ----  */
+#if CUSTOM_BC == 1
 static int _shift_index(int i, int is, int ie, int ish) {
   return (i - is + ish) % (ie - is + 1) + is;
 }
@@ -1306,4 +1326,66 @@ static void bc_shifted_periodic_ox1(GridS *pGrid)
 }
 
 
+
+/* ---- modified outflow ----  */
+#elif CUSTOM_BC == 2
+static void bc_outflowmod_ix1(GridS *pGrid)
+{
+  int is = pGrid->is;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+  Real press = Gamma_1 + dp;
+  Real d, Ekin;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+        d = pGrid->U[k][j][is-i].d;
+        Ekin = 0.5 * (SQR(pGrid->U[k][j][is-i].M1) +
+                      SQR(pGrid->U[k][j][is-i].M2) +
+                      SQR(pGrid->U[k][j][is-i].M3)) / d;
+        pGrid->U[k][j][is-i].d = 1.0;
+        pGrid->U[k][j][is-i].M1 /= d;
+        pGrid->U[k][j][is-i].M2 /= d;
+        pGrid->U[k][j][is-i].M3 /= d;
+        pGrid->U[k][j][is-i].E  = press / Gamma_1 + Ekin / d;
+      }
+    }
+  }
+  return;
+}
+
+
+static void bc_outflowmod_ox1(GridS *pGrid)
+{
+  int ie = pGrid->ie;
+  int js = pGrid->js, je = pGrid->je;
+  int ks = pGrid->ks, ke = pGrid->ke;
+  int i,j,k;
+  Real d, Ekin;
+  Real press = Gamma_1 + dp;
+
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=1; i<=nghost; i++) {
+        pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
+        d = pGrid->U[k][j][ie+i].d;
+        Ekin = 0.5 * (SQR(pGrid->U[k][j][ie+i].M1) +
+                      SQR(pGrid->U[k][j][ie+i].M2) +
+                      SQR(pGrid->U[k][j][ie+i].M3)) / d;
+        pGrid->U[k][j][ie+i].d = 1.0;
+        pGrid->U[k][j][ie+i].M1 /= d;
+        pGrid->U[k][j][ie+i].M2 /= d;
+        pGrid->U[k][j][ie+i].M3 /= d;
+        pGrid->U[k][j][ie+i].E  = press / Gamma_1 + Ekin / d;
+      }
+    }
+  }
+  return;
+}
+
+
+#endif
 #endif /* CUSTOM_BC */
