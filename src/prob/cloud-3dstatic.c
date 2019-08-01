@@ -13,7 +13,7 @@
 /* ----------- Define options here --------- */
 #define REPORT_NANS          // Verbose
 #define ENERGY_COOLING       // Cooling
-#define CUSTOM_BC 2          // If defined use custom boundary conditions.
+//#define CUSTOM_BC 2          // If defined use custom boundary conditions.
                              //     1 = shifted periodic bcs
                              //     2 = outflow with forced background
 //#define INSTANTCOOL
@@ -159,7 +159,7 @@ void problem(DomainS *pDomain)
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
   Real bscale, ascale;
-  int tangled;
+  int cloud_geometry;
 #if (NSCALARS > 0)
   Real dye;
 #endif
@@ -179,6 +179,7 @@ void problem(DomainS *pDomain)
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
+  cloud_geometry = par_geti_def("problem", "cloud_geometry", 0);
 
   iseed = -10;
 #ifdef MPI_PARALLEL
@@ -270,7 +271,12 @@ void problem(DomainS *pDomain)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        r = sqrt(x1*x1+x2*x2+x3*x3);
+        if(cloud_geometry == 1)
+          r = sqrt(x1*x1+x2*x2+x3*x3);
+        else if(cloud_geometry == 2)
+          r = sqrt(MAX(MAX(x1*x1,x2*x2),x3*x3));
+        else
+          ath_error("[init problem] Unknown cloud geometry: %d\n", cloud_geometry);
 
 #if (NSCALARS > 0)
         dye = 0.0;
