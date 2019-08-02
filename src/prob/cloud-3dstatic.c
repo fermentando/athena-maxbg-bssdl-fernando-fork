@@ -115,6 +115,13 @@ static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 static void integrate_cooling(GridS *pG);
 #endif  /* ENERGY_COOLING */
 
+#ifdef VISCOSITY
+static Real nu_fun(const Real d, const Real T,
+                   const Real x1, const Real x2, const Real x3);
+
+static Real maxnu;
+#endif  /* VISCOSITY */
+
 static Real drat, dr,dp,tnotcool, r_cloud, acc;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
@@ -195,6 +202,12 @@ void problem(DomainS *pDomain)
 
 #ifdef INSTANTCOOL
   //  CoolingFunc = instant_cool;
+#endif
+
+#ifdef VISCOSITY
+  maxnu   = par_getd("problem","maxnu");
+  NuFun_i = NULL;
+  NuFun_a = nu_fun;
 #endif
 
   dump_history_enroll(hst_m13, "m13");
@@ -1273,6 +1286,26 @@ static Real RandomNormal2(Real mu, Real sigma)
 
   return (mu + y1 * sigma);
 }
+
+
+#ifdef VISCOSITY
+static Real nu_fun(const Real d, const Real T,
+                   const Real x1, const Real x2, const Real x3)
+{
+  Real nu;
+  Real r = sqrt(SQR(x1) + SQR(x2) + SQR(x3));
+  const Real minr = 2 * r_cloud;
+  const Real maxr = 4 * r_cloud;
+
+  if(r < minr)
+    return 0.;
+
+  if(r > maxr)
+    return maxnu;
+
+  return (r - minr) / (maxr - minr) * maxnu;
+}
+#endif  /* VISCOSITY */
 
 
 
