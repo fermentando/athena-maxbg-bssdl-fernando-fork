@@ -206,8 +206,8 @@ void problem(DomainS *pDomain)
 
 #ifdef VISCOSITY
   maxnu   = par_getd("problem","maxnu");
-  NuFun_i = NULL;
-  NuFun_a = nu_fun;
+  NuFun_i = nu_fun;
+  NuFun_a = NULL;
 #endif
 
   dump_history_enroll(hst_m13, "m13");
@@ -424,6 +424,38 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll(hst_cstcool, "cs*tcool");
 #endif
   */
+
+#ifdef VISCOSITY
+  maxnu   = par_getd("problem","maxnu");
+  NuFun_i = nu_fun;
+  NuFun_a = NULL;
+#endif
+
+#ifdef CUSTOM_BC
+#if CUSTOM_BC == 1      /* shifted periodic */
+  jshift = par_geti("domain1", "jshift");
+  kshift = par_geti("domain1", "kshift");
+
+  ath_pout(0, "[init problem] Using shifted periodic boundary conditions with %d %d\n",
+           jshift, kshift);
+  if (pDomain->Disp[0] == 0)
+    bvals_mhd_fun(pDomain, left_x1,  bc_shifted_periodic_ix1);
+  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+    bvals_mhd_fun(pDomain, right_x1, bc_shifted_periodic_ox1);
+
+#elif CUSTOM_BC == 2 /* modified outflow */
+  ath_pout(0, "[init problem] Using modified outflowing bc.\n");
+
+  if (pDomain->Disp[0] == 0)
+    bvals_mhd_fun(pDomain, left_x1,  bc_outflowmod_ix1);
+  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+    bvals_mhd_fun(pDomain, right_x1, bc_outflowmod_ox1);
+#else
+  if(par_geti_def("domain1", "jshift", -123) != -123)
+    ath_error("[init problem]: jshift found in config but CUSTOM_BC != 1.\n");
+#endif
+#endif // CUSTOM_BC
+
 
 
   return;
