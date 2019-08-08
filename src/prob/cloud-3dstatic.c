@@ -294,7 +294,7 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-
+	rho = 1.0;
         if (r < r_cloud) {
           vx   = -(x2/r_cloud) * v_rot;
           vy   =  (x1/r_cloud) * v_rot;
