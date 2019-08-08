@@ -188,6 +188,9 @@ void problem(DomainS *pDomain)
 
   cloud_geometry = par_geti_def("problem", "cloud_geometry", 1);
 
+  Real perturb_sigma = par_getd_def("problem", "perturb_sigma", -1);
+  Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
+
   iseed = -10;
 #ifdef MPI_PARALLEL
   iseed -= myID_Comm_world;
@@ -347,6 +350,23 @@ void problem(DomainS *pDomain)
       }
     }
   } /* end grid loops */
+
+
+  /* seed a perturbation */
+  if(perturb_sigma > 0) {
+    for (k=ks; k<=ke; k++) {
+      for (j=js; j<=je; j++) {
+        for (i=is; i<=ie; i++) {
+          cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+          fact = -1.0;
+          while (fabs(fact) > perturb_max)
+            fact = (RandomNormal(0.0, perturb_sigma));
+          if(fabs(fact) < perturb_max)
+            pGrid->U[k][j][i].d *= (1.0+fact);
+        }
+      }
+    }
+  }
 
 }
 
