@@ -186,7 +186,7 @@ void problem(DomainS *pDomain)
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
-  cloud_geometry = par_geti_def("problem", "cloud_geometry", 0);
+  cloud_geometry = par_geti_def("problem", "cloud_geometry", 1);
 
   Real perturb_sigma = par_getd_def("problem", "perturb_sigma", -1);
   Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
