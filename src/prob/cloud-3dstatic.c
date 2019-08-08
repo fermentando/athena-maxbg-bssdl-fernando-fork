@@ -191,6 +191,17 @@ void problem(DomainS *pDomain)
   Real perturb_sigma = par_getd_def("problem", "perturb_sigma", -1);
   Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
 
+  /* Stuff for cloud_geometry = 3 (several clouds places) */
+  const int nclouds = 3;
+  Real roff[3][nclouds];
+  srand(42);
+  for(i = 0; i < nclouds; i++)
+    for(j = 0; j < 3; j++)
+      roff[j][i] = randomreal2(-r_cloud, r_cloud);
+  for(j = 0; j < 3; j++)
+    roff[j][0] = 0; // one central cloud
+
+
   iseed = -10;
 #ifdef MPI_PARALLEL
   iseed -= myID_Comm_world;
@@ -282,14 +293,6 @@ void problem(DomainS *pDomain)
   nx3 = (ke-ks)+1 + 2*nghost;
   int iprint = 0;
   vx = vy = vz = 0.0;
-
-  const int nclouds = 3;
-  Real roff[3][nclouds];
-  for(i = 0; i < nclouds; i++)
-    for(j = 0; j < 3; j++)
-      roff[j][i] = randomreal2(-r_cloud, r_cloud);
-  for(j = 0; j < 3; j++)
-    roff[j][0] = 0; // one central cloud
 
   /* Begin cell loop */
   for (k=ks; k<=ke; k++) {
