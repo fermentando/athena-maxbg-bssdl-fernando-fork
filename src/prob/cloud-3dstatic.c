@@ -147,7 +147,7 @@ static Real get_pressure(ConsS *u) {
 void problem(DomainS *pDomain)
 {
   GridS *pGrid = pDomain->Grid;
-  int i=0,j=0,k=0;
+  int i=0,j=0,k=0, ii = 0;
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
@@ -273,6 +273,7 @@ void problem(DomainS *pDomain)
   nan_dump_count = 0;
 #endif
 
+
   is = pGrid->is; ie = pGrid->ie;
   js = pGrid->js; je = pGrid->je;
   ks = pGrid->ks; ke = pGrid->ke;
@@ -281,6 +282,14 @@ void problem(DomainS *pDomain)
   nx3 = (ke-ks)+1 + 2*nghost;
   int iprint = 0;
   vx = vy = vz = 0.0;
+
+  const int nclouds = 3;
+  Real roff[3][nclouds];
+  for(i = 0; i < nclouds; i++)
+    for(j = 0; j < 3; j++)
+      roff[j][i] = randomreal2(-r_cloud, r_cloud);
+  for(j = 0; j < 3; j++)
+    roff[j][0] = 0; // one central cloud
 
   /* Begin cell loop */
   for (k=ks; k<=ke; k++) {
@@ -291,7 +300,14 @@ void problem(DomainS *pDomain)
           r = sqrt(x1*x1+x2*x2+x3*x3);
         else if(cloud_geometry == 2)
           r = sqrt(MAX(MAX(x1*x1,x2*x2),x3*x3));
-        else
+        else if(cloud_geometry == 3) {
+          r = 100 * r_cloud;
+          for(ii=0;ii<5;ii++) {
+            r = MIN(r, sqrt(SQR(x1 - roff[0][ii]) +
+                            SQR(x2 - roff[1][ii]) +
+                            SQR(x3 - roff[2][ii])));
+          }
+        } else
           ath_error("[init problem] Unknown cloud geometry: %d\n", cloud_geometry);
 
 #if (NSCALARS > 0)
