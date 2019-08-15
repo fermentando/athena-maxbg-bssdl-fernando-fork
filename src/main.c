@@ -170,9 +170,11 @@ int main(int argc, char *argv[])
 #ifdef MPI_PARALLEL
       case 't':                      /* -t hh:mm:ss */
         use_wtlim = 1; /* Logical to use a wall time limit */
-        sscanf(argv[++i],"%d:%d:%d",&h,&m,&s);
-        wtend = MPI_Wtime() + s + 60*(m + 60*h);
-        printf("Wall time limit: %d hrs, %d min, %d sec\n",h,m,s);
+	if(myID_Comm_world == 0){
+	  sscanf(argv[++i],"%d:%d:%d",&h,&m,&s);
+	  wtend = MPI_Wtime() + s + 60*(m + 60*h);
+	  printf("Wall time limit: %d hrs, %d min, %d sec\n",h,m,s);
+	}
         break;
 #else
       default:

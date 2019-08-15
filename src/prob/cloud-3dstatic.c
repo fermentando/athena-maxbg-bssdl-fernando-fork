@@ -254,6 +254,17 @@ void problem(DomainS *pDomain)
   */
 #endif /* NSCALARS */
 
+  ath_pout(0, "[init_problem] t_cool,cl = %g, Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
+#ifdef ENERGY_COOLING
+                   tcool(drat, (Gamma_1 + dp) / drat),
+#else
+                   -1,
+#endif
+	   (Gamma_1 + dp) / drat,
+	   Gamma_1 + dp,
+	   (Gamma_1 + dp) / drat / (MAX(tfloor, tfloor_cooling))
+	   );
+
 #ifdef CUSTOM_BC
 #if CUSTOM_BC == 1      /* shifted periodic */
   jshift = par_geti("domain1", "jshift");
@@ -335,21 +346,6 @@ void problem(DomainS *pDomain)
           }
 #endif
         }
-
-        if((r < r_cloud) && (iprint == 0)) {
-          ath_pout(0, "[init_problem] t_cool,cl = %g, Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
-#ifdef ENERGY_COOLING
-                   tcool(drat, (Gamma_1 + dp) / drat),
-#else
-                   -1,
-#endif
-                   (Gamma_1 + dp) / drat,
-                   Gamma_1 + dp,
-                   (Gamma_1 + dp) / drat / (MAX(tfloor, tfloor_cooling))
-                   );
-          iprint = 1;
-        } /* endif printing */
-
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
