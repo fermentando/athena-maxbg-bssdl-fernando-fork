@@ -122,7 +122,7 @@ static Real nu_fun(const Real d, const Real T,
 static Real maxnu;
 #endif  /* VISCOSITY */
 
-static Real drat, dr,dp,tnotcool, r_cloud, acc;
+static Real drat, dr,dp,tnotcool, r_cloud, acc, pressfac_bkg;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
@@ -151,21 +151,16 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
-  Real rho, vx, vy, vz, v_turb, v_rot;
+  Real rho, vx, vy, vz, press;
   Real fact, l_cloud;
 
   int iseed;
-  Real3Vect ***A;
   int nterms,nx1,nx2,nx3,ierr;
-  Real theta, phi, alpha, beta, amp;
   Real scal[5];
   Real my_scal[5];
 
   Real x1min, x1max, x2min, x2max, x3min, x3max, tmp;
 
-  Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
-  Real Bin, Bout_z, Bout_y;
-  Real bscale, ascale;
   int cloud_geometry;
 #if (NSCALARS > 0)
   Real dye;
@@ -183,6 +178,7 @@ void problem(DomainS *pDomain)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
+  pressfac_bkg = par_getd_def("problem", "preassfac_bkg", 1.0); // overpressurize background
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
@@ -254,16 +250,18 @@ void problem(DomainS *pDomain)
   */
 #endif /* NSCALARS */
 
-  ath_pout(0, "[init_problem] t_cool,cl = %g, Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
+  ath_pout(0, "[init_problem] drat = %g, pressfac_bkg = %g, t_cool,cl = %g, "
+           "Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
+           drat, pressfac_bkg,
 #ifdef ENERGY_COOLING
-                   tcool(drat, (Gamma_1 + dp) / drat),
+           tcool(drat, (Gamma_1 + dp) / drat),
 #else
-                   -1,
+           -1,
 #endif
-	   (Gamma_1 + dp) / drat,
-	   Gamma_1 + dp,
-	   (Gamma_1 + dp) / drat / (MAX(tfloor, tfloor_cooling))
-	   );
+           (Gamma_1 + dp) / drat,
+           (Gamma_1 + dp) * pressfac_bkg,
+           (Gamma_1 + dp) / drat / (MAX(tfloor, tfloor_cooling))
+           );
 
 #ifdef CUSTOM_BC
 #if CUSTOM_BC == 1      /* shifted periodic */
@@ -327,16 +325,18 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-	rho = 1.0;
-        if (r < r_cloud) {
-          vx   = -(x2/r_cloud) * v_rot;
-          vy   =  (x1/r_cloud) * v_rot;
+        rho = 1.0;
+        press = 1.0 + dp / Gamma_1 ;
 
+        if (r < r_cloud) {
           rho  *= drat;
 #if (NSCALARS > 0)
           dye = drat ; //1.0;
 #endif
+        } else {
+          press *= pressfac_bkg; // overpressurize background
         }
+
         if (dr > 0.0) {
           rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
 #if (NSCALARS > 0)
@@ -349,9 +349,8 @@ void problem(DomainS *pDomain)
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
-        // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-        pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
+        pGrid->U[k][j][i].E = press;
 #endif  /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
@@ -417,6 +416,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
+  pressfac_bkg = par_getd_def("problem", "preassfac_bkg", 1.0); 
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
