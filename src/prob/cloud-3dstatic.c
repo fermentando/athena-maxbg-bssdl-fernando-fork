@@ -187,7 +187,7 @@ void problem(DomainS *pDomain)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
-  pressfac_bkg = par_getd_def("problem", "preassfac_bkg", 1.0); // overpressurize background
+  pressfac_bkg = par_getd_def("problem", "pressfac_bkg", 1.0); // overpressurize background
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
@@ -428,7 +428,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
 
   dp = par_getd_def("problem", "dp", 0.0);
-  pressfac_bkg = par_getd_def("problem", "preassfac_bkg", 1.0); 
+  pressfac_bkg = par_getd_def("problem", "pressfac_bkg", 1.0); 
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 

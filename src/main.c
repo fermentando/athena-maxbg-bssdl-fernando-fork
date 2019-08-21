@@ -170,11 +170,9 @@ int main(int argc, char *argv[])
 #ifdef MPI_PARALLEL
       case 't':                      /* -t hh:mm:ss */
         use_wtlim = 1; /* Logical to use a wall time limit */
-	if(myID_Comm_world == 0){
-	  sscanf(argv[++i],"%d:%d:%d",&h,&m,&s);
-	  wtend = MPI_Wtime() + s + 60*(m + 60*h);
-	  printf("Wall time limit: %d hrs, %d min, %d sec\n",h,m,s);
-	}
+	sscanf(argv[++i],"%d:%d:%d",&h,&m,&s);
+	wtend = MPI_Wtime() + s + 60*(m + 60*h);
+	// print below
         break;
 #else
       default:
@@ -194,6 +192,10 @@ int main(int argc, char *argv[])
 
   if(MPI_SUCCESS != MPI_Comm_rank(MPI_COMM_WORLD, &myID_Comm_world))
     ath_error("[main]: Error on calling MPI_Comm_rank\n");
+
+  if(use_wtlim && (myID_Comm_world == 0)){
+    printf("Wall time limit: %d hrs, %d min, %d sec\n",h,m,s);
+  }
 
 /* Only rank=0 processor reads input parameter file, parses command line,
  * broadcasts the contents of the (updated) parameter file to the children. */
