@@ -17,6 +17,7 @@
                              //     1 = shifted periodic bcs
                              //     2 = outflow with forced background
 //#define INSTANTCOOL
+#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 /* ----------------------------------------- */
 
 #ifdef MPI_PARALLEL
@@ -113,6 +114,10 @@ static Real Yinv(const Real Y1, const int id);
 static Real newtemp_townsend(const Real d, const Real T, const Real dt_hydro);
 
 static void integrate_cooling(GridS *pG);
+#if ENERGY_HEATING == 1
+static void radiate_energy(MeshS *pM);
+#endif
+
 #endif  /* ENERGY_COOLING */
 
 #ifdef VISCOSITY
@@ -121,6 +126,10 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real maxnu;
 #endif  /* VISCOSITY */
+#if ENERGY_HEATING == 2 // fixed heating
+static Real heating_rate;
+#endif /* ENERGY_HEATING == 2 */
+
 
 static Real drat, dr,dp,tnotcool, r_cloud, acc, pressfac_bkg;
 
@@ -262,6 +271,9 @@ void problem(DomainS *pDomain)
            (Gamma_1 + dp) * pressfac_bkg,
            (Gamma_1 + dp) / drat / (MAX(tfloor, tfloor_cooling))
            );
+#if ENERGY_HEATING > 0
+  ath_pout(0, "[init problem] energy heating is enabled with mode %d.", ENERGY_HEATING);
+#endif
 
 #ifdef CUSTOM_BC
 #if CUSTOM_BC == 1      /* shifted periodic */
@@ -314,7 +326,7 @@ void problem(DomainS *pDomain)
           r = sqrt(MAX(MAX(x1*x1,x2*x2),x3*x3));
         else if(cloud_geometry == 3) {
           r = 100 * r_cloud;
-          for(ii=0;ii<5;ii++) {
+          for(ii=0;ii<5;ii++) { // wrong! but we leave it for now...
             r = MIN(r, sqrt(SQR(x1 - roff[0][ii]) +
                             SQR(x2 - roff[1][ii]) +
                             SQR(x3 - roff[2][ii])));
@@ -543,6 +555,11 @@ void Userwork_in_loop(MeshS *pM)
       }
     }
   }
+
+#if ENERGY_HEATING == 1
+  radiate_energy(pM);
+#endif
+
 
   return;
 }
@@ -990,6 +1007,89 @@ static void integrate_cooling(GridS *pG)
   return;
 
 }
+
+
+#if ENERGY_HEATING == 1
+/*
+  Radiate cooled energy over whole domain
+ */
+static void radiate_energy(MeshS *pM) {
+  //  ath_error("Does not work right now.");
+  Real Erad_total = 0;
+  GridS *pG;
+  int i, j, k, is, ie, js, je, ks, ke;
+  int nl, nd;
+  Real dV;
+  Real V = (pM->RootMaxX[2] - pM->RootMinX[2]) * \
+    (pM->RootMaxX[1] - pM->RootMinX[1]) * \
+    (pM->RootMaxX[0] - pM->RootMinX[0]);
+
+#ifdef MPI_PARALLEL
+  int ierr;
+  Real my_Etot;
+#endif
+
+  // Calculate total energy
+  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
+    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
+      if (pM->Domain[nl][nd].Grid != NULL) {
+        pG = pM->Domain[nl][nd].Grid;
+
+        is = pG->is;  ie = pG->ie;
+        js = pG->js;  je = pG->je;
+        ks = pG->ks;  ke = pG->ke;
+
+        for (k=ks; k<=ke; k++) {
+          for (j=js; j<=je; j++) {
+            for (i=is; i<=ie; i++) {
+              Erad_total += pG->U[k][j][i].Erad;
+              /*
+                Let's not set this to zero here but instead after the output so we
+                can visualize Erad.
+               */
+              // pG->U[k][j][i].Erad = 0.0;
+            }
+          }
+        }
+      }
+    }
+  }
+  //  ath_pout(0,"Local E %e\n", Erad_total);
+
+#ifdef MPI_PARALLEL
+  my_Etot = Erad_total;
+
+  ierr = MPI_Allreduce(&my_Etot, &Erad_total, 1, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[radiate_energy]: MPI_Allreduce returned error %d\n", ierr);
+#endif
+
+  // Distribute energy over grid
+  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
+    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
+      if (pM->Domain[nl][nd].Grid != NULL) {
+        pG = pM->Domain[nl][nd].Grid;
+
+        is = pG->is;  ie = pG->ie;
+        js = pG->js;  je = pG->je;
+        ks = pG->ks;  ke = pG->ke;
+
+        dV = pG->dx1 * pG->dx2 * pG->dx3;
+        for (k=ks; k<=ke; k++) {
+          for (j=js; j<=je; j++) {
+            for (i=is; i<=ie; i++) {
+              pG->U[k][j][i].E += Erad_total * dV / V;
+            }
+          }
+        }
+      }
+    }
+  }
+  ath_pout(0, "[radiate_energy] Distributed a total energy of %e in fractional "
+           "volumes of %e.\n", Erad_total, dV / V);
+
+}
+#endif /* ENERGY_HEATING */
 
 
 static void test_cooling()
