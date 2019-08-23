@@ -40,6 +40,8 @@
 
 #ifndef SPECIAL_RELATIVITY
 #ifdef HLLE_FLUX
+/* H-correction, value passed from integrator. Not used here! */
+Real etah=0.0;
 #define HLLE_FUNCTION fluxes
 #endif
 

@@ -29,7 +29,11 @@
 #include "prototypes.h"
 #include "../prototypes.h"
 
+
 #ifdef HLLC_FLUX
+/* maximum wavespeed used by H-correction, value passed from integrator */
+Real etah=0.0;
+
 #ifndef SPECIAL_RELATIVITY
 
 #ifdef MHD
@@ -115,8 +119,13 @@ void fluxes(const Cons1DS Ul, const Cons1DS Ur,
   cfr = sqrt((double)(Gamma*Wr.P/Wr.d));
 #endif
 
+#ifdef H_CORRECTION
+  ar = MAX(MAX(etah,  ev[NWAVE-1]),(Wr.Vx + cfr));
+  al = MIN(MIN(-etah, ev[0]      ),(Wl.Vx - cfl));
+#else // this is not really needed
   ar = MAX(ev[NWAVE-1],(Wr.Vx + cfr));
   al = MIN(ev[0]      ,(Wl.Vx - cfl));
+#endif
 
   bp = ar > 0.0 ? ar : 0.0;
   bm = al < 0.0 ? al : 0.0;

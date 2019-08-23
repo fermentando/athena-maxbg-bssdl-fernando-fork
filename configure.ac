@@ -444,8 +444,11 @@ if test "$ok" = "yes"; then
 if test "$with_flux" = "roe"; then
   H_CORRECTION_MODE="H_CORRECTION"
   H_CORRECTION_MODE_USER="ON"
+elif test "$with_flux" = "hllc"; then
+  H_CORRECTION_MODE="H_CORRECTION"
+  H_CORRECTION_MODE_USER="ON"
 else
-  AC_MSG_ERROR([H-correction only works with Roe flux])
+  AC_MSG_ERROR([H-correction only works with Roe or HLLC flux])
 fi
 else
   H_CORRECTION_MODE="NO_H_CORRECTION"
