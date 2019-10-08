@@ -331,6 +331,8 @@ void problem(DomainS *pDomain)
                             SQR(x2 - roff[1][ii]) +
                             SQR(x3 - roff[2][ii])));
           }
+        } else if(cloud_geometry == 4) {
+          r = sqrt(x1*x1 * (1+1e-4)+x2*x2 * (1+1e-5)+x3*x3* (1+5e-5));
         } else
           ath_error("[init problem] Unknown cloud geometry: %d\n", cloud_geometry);
 
