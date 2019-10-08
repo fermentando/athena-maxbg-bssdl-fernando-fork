@@ -120,8 +120,14 @@ void fluxes(const Cons1DS Ul, const Cons1DS Ur,
 #endif
 
 #ifdef H_CORRECTION
-  ar = MAX(MAX(etah,  ev[NWAVE-1]),(Wr.Vx + cfr));
-  al = MIN(MIN(-etah, ev[0]      ),(Wl.Vx - cfl));
+  Real tmpr, tmpl;
+  tmpr = MAX(etah, fabs(ev[NWAVE-1])) * SIGN(ev[NWAVE-1]);
+  tmpl = MAX(etah, fabs(ev[0])) * SIGN(ev[0]);
+  ar = MAX(tmpr,(Wr.Vx + cfr));
+  al = MIN(tmpl,(Wl.Vx - cfl));
+
+  // ar = MAX(MAX(etah,  ev[NWAVE-1]),(Wr.Vx + cfr));
+  // al = MIN(MIN(-etah, ev[0]      ),(Wl.Vx - cfl));
 #else // this is not really needed
   ar = MAX(ev[NWAVE-1],(Wr.Vx + cfr));
   al = MIN(ev[0]      ,(Wl.Vx - cfl));
