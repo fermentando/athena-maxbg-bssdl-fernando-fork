@@ -327,6 +327,8 @@ void problem(DomainS *pDomain)
         else if(cloud_geometry == 3) {
           r = 100 * r_cloud;
           for(ii=0;ii<5;ii++) { // wrong! but we leave it for now...
+	    ath_pout(0, "[cloud placed] %d --> %e %e %e\n", ii, roff[0][ii],
+		     roff[1][ii], roff[2][ii]);
             r = MIN(r, sqrt(SQR(x1 - roff[0][ii]) +
                             SQR(x2 - roff[1][ii]) +
                             SQR(x3 - roff[2][ii])));
