@@ -197,7 +197,8 @@ void problem(DomainS *pDomain)
   Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
 
   /* Stuff for cloud_geometry = 3 (several clouds places) */
-  const int nclouds = 3;
+  const int nclouds = 4;
+  /* Let's place the clouds manually instead due to compiler compatibility...
   Real roff[3][nclouds];
   srand(42);
   for(i = 0; i < nclouds; i++)
@@ -205,7 +206,17 @@ void problem(DomainS *pDomain)
       roff[j][i] = randomreal2(-r_cloud, r_cloud);
   for(j = 0; j < 3; j++)
     roff[j][0] = 0; // one central cloud
+  */
 
+  // Make it static & rescale to cloud radius
+  Real roff[3][nclouds] = {
+    {0.000000e+00, -3.875666e-01, 6.827926e-01, -1.468674e+00},
+    {0.000000e+00, -1.468674e+00, 1.818112e+00, -1.249358e+00},
+    {0.000000e+00, -1.249358e+00, -9.917218e-01, 0.000000e+00}
+  };
+  for(i = 0; i < nclouds; i++)
+    for(j = 0; j < 3; j++)
+      roff[j][i] *= r_cloud / 2.5;
 
   iseed = -10;
 #ifdef MPI_PARALLEL
@@ -315,6 +326,10 @@ void problem(DomainS *pDomain)
   int iprint = 0;
   vx = vy = vz = 0.0;
 
+  for(ii=0;ii<nclouds;ii++)
+    ath_pout(0, "[cloud placed] %d --> %e %e %e\n", ii, roff[0][ii],
+	     roff[1][ii], roff[2][ii]);
+
   /* Begin cell loop */
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
@@ -325,10 +340,8 @@ void problem(DomainS *pDomain)
         else if(cloud_geometry == 2)
           r = sqrt(MAX(MAX(x1*x1,x2*x2),x3*x3));
         else if(cloud_geometry == 3) {
-          r = 100 * r_cloud;
-          for(ii=0;ii<5;ii++) { // wrong! but we leave it for now...
-	    ath_pout(0, "[cloud placed] %d --> %e %e %e\n", ii, roff[0][ii],
-		     roff[1][ii], roff[2][ii]);
+          r = 1e5 * r_cloud;
+          for(ii=0;ii<nclouds;ii++) { 
             r = MIN(r, sqrt(SQR(x1 - roff[0][ii]) +
                             SQR(x2 - roff[1][ii]) +
                             SQR(x3 - roff[2][ii])));
