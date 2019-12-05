@@ -631,7 +631,10 @@ void init_mesh(MeshS *pM)
  * MPI processes available (equal to one for single processor jobs) */
 
   if (next_procID != 0)
-    ath_error("[init_mesh]:total # of Grids != total # of MPI procs\n");
+    ath_error("[init_mesh]:total # of Grids != total # of MPI procs. "
+	      "NGrid = %d, comm_world - 1 = %d, next_procID = %d",
+	      pD->NGrid[0] * pD->NGrid[1] * pD->NGrid[2],
+	      (Nproc_Comm_world)-1, next_procID);
 
 /*--- Step 7: Allocate a Grid for each Domain on this processor --------------*/
 

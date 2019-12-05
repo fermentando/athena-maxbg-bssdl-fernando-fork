@@ -36,14 +36,20 @@ Real3Vect get_e1(Real theta, Real phi);
 Real3Vect get_e2(Real theta, Real phi);
 Real3Vect get_e3(Real theta, Real phi);
 
+void init_hst_enrolls();
+
 /* custom hst quantities */
 static Real hst_m13(const GridS *pG, const int i, const int j, const int k);
 static Real hst_m110(const GridS *pG, const int i, const int j, const int k);
 static Real hst_mT2(const GridS *pG, const int i, const int j, const int k);
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k);
+static Real hst_mTfl2(const GridS *pG, const int i, const int j, const int k);
 
 static Real hst_Erad(const GridS *pG, const int i, const int j, const int k);
 
+static Real hst_V13(const GridS *pG, const int i, const int j, const int k);
+static Real hst_VT2(const GridS *pG, const int i, const int j, const int k);
+static Real hst_VTfl2(const GridS *pG, const int i, const int j, const int k);
 
 /* dye-weighted hst quantities */
 #if (NSCALARS > 0)
@@ -131,7 +137,7 @@ static Real heating_rate;
 #endif /* ENERGY_HEATING == 2 */
 
 
-static Real drat, dr,dp,tnotcool, r_cloud, acc, pressfac_bkg;
+static Real drat, dr,dp,tnotcool, r_cloud, acc, pressfac_bkg, pressfac_cl;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
@@ -146,6 +152,49 @@ static Real pro(Real r, Real rcloud)
 static Real get_pressure(ConsS *u) {
   Real E0 = 0.5 * (SQR(u->M1) + SQR(u->M2) + SQR(u->M3)) / u->d;
   return (u->E - E0) * Gamma_1;
+}
+
+
+/* 
+ Helper function to initialize all the hst enrolls.
+ Is called for init & restart.
+ */
+void init_hst_enrolls() {
+    dump_history_enroll(hst_m13, "m13");
+  //dump_history_enroll(hst_m110, "m110");
+  dump_history_enroll(hst_mT2, "mT2");
+  dump_history_enroll(hst_mTfl2, "mTfl2");
+  dump_history_enroll(hst_Mx13, "Mx13");
+
+  dump_history_enroll(hst_VT2, "VT2");
+  dump_history_enroll(hst_V13, "V13");
+  dump_history_enroll(hst_VTfl2, "VTfl2");
+
+  dump_history_enroll(hst_Erad, "Erad");
+
+#if (NSCALARS > 0)
+  dump_history_enroll(hst_c,    "<c>");
+  dump_history_enroll(hst_c_sq, "<c^2>");
+
+  dump_history_enroll(hst_cE,  "<c * E>");
+  //dump_history_enroll(hst_cx1, "<c * x1>");
+
+  dump_history_enroll(hst_cvx, "<c * Vx>");
+  dump_history_enroll(hst_cvy, "<c * Vy>");
+  //dump_history_enroll(hst_cvz, "<c * Vz>");
+
+  dump_history_enroll(hst_cvx_sq, "<(c * Vx)^2>");
+  dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
+  //dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
+
+  dump_history_enroll(hst_Sdye, "dye entropy");
+  /*
+#ifdef ENERGY_COOLING
+  dump_history_enroll(hst_cstcool, "cs*tcool");
+#endif
+  */
+#endif /* NSCALARS */
+
 }
 
 
@@ -188,6 +237,7 @@ void problem(DomainS *pDomain)
 
   dp = par_getd_def("problem", "dp", 0.0);
   pressfac_bkg = par_getd_def("problem", "pressfac_bkg", 1.0); // overpressurize background
+  pressfac_cl = par_getd_def("problem", "pressfac_cl", 1.0); // overpressurize cloud & changes rho_cl!
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
@@ -240,41 +290,14 @@ void problem(DomainS *pDomain)
   NuFun_a = NULL;
 #endif
 
-  dump_history_enroll(hst_m13, "m13");
-  dump_history_enroll(hst_m110, "m110");
-  dump_history_enroll(hst_mT2, "mT2");
-  dump_history_enroll(hst_Mx13, "Mx13");
+  // Set up all the hst output
+  init_hst_enrolls();
 
-  dump_history_enroll(hst_Erad, "Erad");
-
-#if (NSCALARS > 0)
-  dump_history_enroll(hst_c,    "<c>");
-  dump_history_enroll(hst_c_sq, "<c^2>");
-
-  dump_history_enroll(hst_cE,  "<c * E>");
-  dump_history_enroll(hst_cx1, "<c * x1>");
-
-  dump_history_enroll(hst_cvx, "<c * Vx>");
-  dump_history_enroll(hst_cvy, "<c * Vy>");
-  dump_history_enroll(hst_cvz, "<c * Vz>");
-
-  dump_history_enroll(hst_cvx_sq, "<(c * Vx)^2>");
-  dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
-  dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
-
-  dump_history_enroll(hst_Sdye, "dye entropy");
-  /*
-#ifdef ENERGY_COOLING
-  dump_history_enroll(hst_cstcool, "cs*tcool");
-#endif
-  */
-#endif /* NSCALARS */
-
-  ath_pout(0, "[init_problem] drat = %g, pressfac_bkg = %g, t_cool,cl = %g, "
+  ath_pout(0, "[init_problem] drat = %g, pressfac_bkg = %g, pressfac_cl = %g, t_cool,cl = %g, "
            "Tcl = %g, Twind = %g, Tcl / Tfloor = %g\n",
-           drat, pressfac_bkg,
+           drat * pressfac_cl, pressfac_bkg, pressfac_cl,
 #ifdef ENERGY_COOLING
-           tcool(drat, (Gamma_1 + dp) / drat),
+           tcool(drat * pressfac_cl, (Gamma_1 + dp) / drat),
 #else
            -1,
 #endif
@@ -358,16 +381,17 @@ void problem(DomainS *pDomain)
         press = 1.0 + dp / Gamma_1 ;
 
         if (r < r_cloud) {
-          rho  *= drat;
+          rho  *= drat * pressfac_cl;
+	  press *= pressfac_cl;
 #if (NSCALARS > 0)
-          dye = drat ; //1.0;
+          dye = drat * pressfac_cl; //1.0;
 #endif
         } else {
           press *= pressfac_bkg; // overpressurize background
         }
 
         if (dr > 0.0) {
-          rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
+          rho = (1.0 + pressfac_cl*drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
 #if (NSCALARS > 0)
           // This line means that the dye does not follow the density in the boundary (dr) region
           if(r < r_cloud){ 
@@ -397,6 +421,8 @@ void problem(DomainS *pDomain)
 
   /* seed a perturbation */
   if(perturb_sigma > 0) {
+    ath_pout(0, "[setup] Seeding perturbations with perturb_sigma = %e and sigma_max = %e\n",
+	     perturb_sigma, perturb_max);
     for (k=ks; k<=ke; k++) {
       for (j=js; j<=je; j++) {
         for (i=is; i<=ie; i++) {
@@ -410,6 +436,8 @@ void problem(DomainS *pDomain)
       }
     }
   }
+
+  ath_pout(0, "[setup] done.");
 
 }
 
@@ -446,6 +474,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
   dp = par_getd_def("problem", "dp", 0.0);
   pressfac_bkg = par_getd_def("problem", "pressfac_bkg", 1.0); 
+  pressfac_cl = par_getd_def("problem", "pressfac_cl", 1.0); 
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
@@ -458,36 +487,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 #endif
 
   // Re-enroll hst dumps after restart
-  dump_history_enroll(hst_m13, "m13");
-  dump_history_enroll(hst_m110, "m110");
-  dump_history_enroll(hst_mT2, "mT2");
-  dump_history_enroll(hst_Mx13, "Mx13");
-
-  dump_history_enroll(hst_Erad, "Erad");
-
-
-#if (NSCALARS > 0)
-  dump_history_enroll(hst_c,    "<c>");
-  dump_history_enroll(hst_c_sq, "<c^2>");
-
-  dump_history_enroll(hst_cE,  "<c * E>");
-  dump_history_enroll(hst_cx1, "<c * x1>");
-
-  dump_history_enroll(hst_cvx, "<c * Vx>");
-  dump_history_enroll(hst_cvy, "<c * Vy>");
-  dump_history_enroll(hst_cvz, "<c * Vz>");
-
-  dump_history_enroll(hst_cvx_sq, "<(c * Vx)^2>");
-  dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
-  dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
-  dump_history_enroll(hst_Sdye, "dye entropy");
-#endif  /* NSCALARS */
-
-  /*
-#ifdef ENERGY_COOLING
-  dump_history_enroll(hst_cstcool, "cs*tcool");
-#endif
-  */
+  init_hst_enrolls();
 
 #ifdef VISCOSITY
   maxnu   = par_getd("problem","maxnu");
@@ -1314,7 +1314,7 @@ static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, co
 #else
   Real s = 1.0;
 #endif
-  if(pG->U[k][j][i].d < frac * drat * s)
+  if(pG->U[k][j][i].d < frac * drat * s * pressfac_cl)
     return 0;
   return pG->U[k][j][i].d;
 }
@@ -1335,6 +1335,16 @@ static Real hst_mT2(const GridS *pG, const int i, const int j, const int k)
 }
 
 
+static Real hst_mTfl2(const GridS *pG, const int i, const int j, const int k)
+{
+  Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
+  const Real Tfloor = MAX(tfloor, tfloor_cooling);
+  if(temp > 2 * Tfloor)
+    return 0;
+  return pG->U[k][j][i].d;
+}
+
+
 static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 0.1);
@@ -1344,7 +1354,7 @@ static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
   Real s = 1.0;
-  if(pG->U[k][j][i].d < drat / 3. * s)
+  if(pG->U[k][j][i].d < pressfac_cl * drat / 3. * s)
     return 0;
   return pG->U[k][j][i].M1;
 }
@@ -1353,6 +1363,38 @@ static Real hst_Erad(const GridS *pG, const int i, const int j, const int k)
 {
   return pG->U[k][j][i].Erad;
 }
+
+static Real hst_VTfl2(const GridS *pG, const int i, const int j, const int k)
+{
+  Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
+  const Real Tfloor = MAX(tfloor, tfloor_cooling);
+  if(temp > 2 * Tfloor)
+    return 0;
+  return 1.0;
+}
+
+
+static Real hst_VT2(const GridS *pG, const int i, const int j, const int k)
+{
+  Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
+  const Real Tcl = (Gamma_1 + dp) / drat;
+  if(temp > 2 * Tcl)
+    return 0;
+  return 1.0;
+}
+
+static Real hst_V13(const GridS *pG, const int i, const int j, const int k)
+{
+#ifdef EXPAND_DOMAIN
+  Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
+#else
+  Real s = 1.0;
+#endif
+  if(pG->U[k][j][i].d < drat * s * pressfac_cl /3.)
+    return 0;
+  return 1.0;
+}
+
 
 
 /* dye-weighted hst quantities */
