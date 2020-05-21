@@ -433,20 +433,20 @@ static void read_write_scalar(FILE *fp_out){
     fprintf(stderr, "infunc2");
     for(k=0; k<domain_3d[kg][0][0].Nz; k++){
       for(jg=0; jg<NGrid_y; jg++){
-	for(j=0; j<domain_3d[0][jg][0].Ny; j++){
-	  for(ig=0; ig<NGrid_x; ig++){
+        for(j=0; j<domain_3d[0][jg][0].Ny; j++){
+          for(ig=0; ig<NGrid_x; ig++){
 
             fp = domain_3d[kg][jg][ig].fp;
 
-	    for(i=0; i<domain_3d[0][0][ig].Nx; i++){
+            for(i=0; i<domain_3d[0][0][ig].Nx; i++){
 
-	      if((nread = fread(&fdat, sizeof(float), 1, fp)) != 1)
-		join_error("read_write_scalar error\n");
+              if((nread = fread(&fdat, sizeof(float), 1, fp)) != 1)
+                join_error("read_write_scalar error\n");
 
-	      fwrite(&fdat, sizeof(float), 1, fp_out);
-	    }
-	  }
-	}
+              fwrite(&fdat, sizeof(float), 1, fp_out);
+            }
+          }
+        }
       }
     }
     fprintf(stderr, "infunc3");
@@ -476,26 +476,26 @@ static void read_write_vector(FILE *fp_out){
     for(jg=0; jg<NGrid_y; jg++){
       for(ig=0; ig<NGrid_x; ig++){
         if((domain_3d[kg][jg][ig].fp = fopen(domain_3d[kg][jg][ig].fname,"r")) == NULL)
-           join_error("Error opening file \"%s\"\n",domain_3d[kg][jg][ig].fname);
+          join_error("Error opening file \"%s\"\n",domain_3d[kg][jg][ig].fname);
         fseek(domain_3d[kg][jg][ig].fp,domain_3d[kg][jg][ig].pos, SEEK_SET);
       }
     }
     for(k=0; k<domain_3d[kg][0][0].Nz; k++){
       for(jg=0; jg<NGrid_y; jg++){
-	for(j=0; j<domain_3d[0][jg][0].Ny; j++){
-	  for(ig=0; ig<NGrid_x; ig++){
+        for(j=0; j<domain_3d[0][jg][0].Ny; j++){
+          for(ig=0; ig<NGrid_x; ig++){
 
-	    fp = domain_3d[kg][jg][ig].fp;
+            fp = domain_3d[kg][jg][ig].fp;
 
-	    for(i=0; i<domain_3d[0][0][ig].Nx; i++){
+            for(i=0; i<domain_3d[0][0][ig].Nx; i++){
 
-	      if((nread = fread(fvec, sizeof(float), 3, fp)) != 3)
-		join_error("read_write_vector error\n");
+              if((nread = fread(fvec, sizeof(float), 3, fp)) != 3)
+                join_error("read_write_vector error\n");
 
-	      fwrite(fvec, sizeof(float), 3, fp_out);
-	    }
-	  }
-	}
+              fwrite(fvec, sizeof(float), 3, fp_out);
+            }
+          }
+        }
       }
     }
     for(jg=0; jg<NGrid_y; jg++){
