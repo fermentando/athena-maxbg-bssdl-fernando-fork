@@ -295,8 +295,14 @@ void problem(DomainS *pDomain)
         //Real dens = (rho_c-rho_h)*exp(alpha_exp*f)*(0.5 - atan(x/dr)/PI) + rho_h;
         Real x_boundary = bound_amp * sin(PI*y / bound_lambda); //-5.0+5.0*sin(0.1*PI*y)
         Real dens = (rho_c-rho_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + rho_h;
-        Real press = rho_h*thot;
 
+        // Constant pressure everywhere
+        //Real press = rho_h*thot;
+
+        // Cold already at low pressure
+        Real press_h = rho_h*thot;
+        Real press_c = press_h / X;
+        Real press = (press_c-press_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + press_h;
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = dens;
