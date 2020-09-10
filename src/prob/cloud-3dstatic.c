@@ -245,6 +245,8 @@ void problem(DomainS *pDomain)
 
   Real perturb_sigma = par_getd_def("problem", "perturb_sigma", -1);
   Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
+  Real perturb_sigma_cloud = par_getd_def("problem", "perturb_sigma_cloud", -1);
+  Real perturb_max_cloud = par_getd_def("problem", "perturb_max_cloud", 0.03);
 
   /* Stuff for cloud_geometry = 3 (several clouds places) */
   const int nclouds = 4;
@@ -420,6 +422,25 @@ void problem(DomainS *pDomain)
 
 
   /* seed a perturbation */
+  if(perturb_sigma_cloud > 0) {
+    ath_pout(0, "[setup] Seeding perturbations with in cloud perturb_sigma_cloud = %e and sigma_max_cloud = %e\n",
+	     perturb_sigma_cloud, perturb_max_cloud);
+    for (k=ks; k<=ke; k++) {
+      for (j=js; j<=je; j++) {
+        for (i=is; i<=ie; i++) {
+	  if(pGrid->U[k][j][i].d > 1 + 1e-5) { // only inside of cloud
+	    cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+	    fact = -1.0;
+	    while((fabs(fact) > perturb_max_cloud) || (fact < -1.0+1e-5))
+	      fact = (RandomNormal(0.0, perturb_sigma_cloud));
+	    if(fabs(fact) < perturb_max_cloud)
+	      pGrid->U[k][j][i].d *= (1.0+fact);
+	  }
+	}
+      }
+    }
+  }
+
   if(perturb_sigma > 0) {
     ath_pout(0, "[setup] Seeding perturbations with perturb_sigma = %e and sigma_max = %e\n",
 	     perturb_sigma, perturb_max);
@@ -428,7 +449,7 @@ void problem(DomainS *pDomain)
         for (i=is; i<=ie; i++) {
           cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
           fact = -1.0;
-          while (fabs(fact) > perturb_max)
+          while((fabs(fact) > perturb_max) || (fact < -1.0+1e-5))
             fact = (RandomNormal(0.0, perturb_sigma));
           if(fabs(fact) < perturb_max)
             pGrid->U[k][j][i].d *= (1.0+fact);
