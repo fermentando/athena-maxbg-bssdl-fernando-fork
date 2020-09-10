@@ -209,7 +209,7 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
-  Real rho, vx, vy, vz, press;
+  Real rho, vx, vy, vz, eint;
   Real fact, l_cloud;
 
   int iseed;
@@ -245,8 +245,38 @@ void problem(DomainS *pDomain)
 
   Real perturb_sigma = par_getd_def("problem", "perturb_sigma", -1);
   Real perturb_max = par_getd_def("problem", "perturb_max", 0.03);
-  Real perturb_sigma_cloud = par_getd_def("problem", "perturb_sigma_cloud", -1);
-  Real perturb_max_cloud = par_getd_def("problem", "perturb_max_cloud", 0.03);
+
+  // Fill random variables as Bruggen+13 for cloud
+  const int sim_k1 = par_geti_def("problem","pert_sim_k1", 5);
+  const int sim_k2 = par_geti_def("problem","pert_sim_k2", 32);
+  const Real alpha_exp = par_getd_def("problem","pert_alpha_exp", -1); // Controls RMS
+
+  int nwaves;
+  if(alpha_exp > 0)
+    nwaves = sim_k2-sim_k1;
+  else
+    nwaves = 1;
+
+  Real Phii[nwaves][nwaves][nwaves][3];
+  Real Aii[nwaves][nwaves][nwaves];
+
+  if(alpha_exp > 0){
+    ath_pout(0, "[init problem] Seed lognormal perturbation in cloud.\n");
+
+    srand(42); // to have same phis over all processors
+    for(int k=0;k<nwaves;k++) {
+      for(int j=0;j<nwaves;j++) {
+        for(int i=0;i<nwaves;i++) {
+          for(int l=0;l<3;l++) {
+            Phii[k][j][i][l] = 2 * PI * randomreal2(0,1);
+          }
+          Aii[k][j][i] = randomreal2(0,1);
+        }
+      }
+    }
+  } // end fill random waves
+
+
 
   /* Stuff for cloud_geometry = 3 (several clouds places) */
   const int nclouds = 4;
@@ -341,6 +371,9 @@ void problem(DomainS *pDomain)
   nan_dump_count = 0;
 #endif
 
+  if((pressfac_bkg != 1) && (dr > 0))
+    ath_error("pressfac_bkg != 1 && dr > 0 not supported yet.");
+
 
   is = pGrid->is; ie = pGrid->ie;
   js = pGrid->js; je = pGrid->je;
@@ -380,16 +413,16 @@ void problem(DomainS *pDomain)
         dye = 0.0;
 #endif
         rho = 1.0;
-        press = 1.0 + dp / Gamma_1 ;
+        eint = 1.0 + dp / Gamma_1 ;
 
         if (r < r_cloud) {
           rho  *= drat * pressfac_cl;
-	  press *= pressfac_cl;
+          eint *= pressfac_cl;
 #if (NSCALARS > 0)
           dye = drat * pressfac_cl; //1.0;
 #endif
         } else {
-          press *= pressfac_bkg; // overpressurize background
+          eint *= pressfac_bkg; // overpressurize background
         }
 
         if (dr > 0.0) {
@@ -402,10 +435,33 @@ void problem(DomainS *pDomain)
 #endif
         }
 
+        /* Fill cloud with wave perturbations */
+        if((alpha_exp > 0) && (r < r_cloud + 2 * MAX(dr,0))) {
+          Real f = 0;
+          for(int kw=0;kw<nwaves;kw++) {
+            for(int jw=0;jw<nwaves;jw++) {
+              for(int iw=0;iw<nwaves;iw++) {
+                f += Aii[kw][jw][iw] * \
+                  sin(2*PI*(kw+sim_k1)*x3/r_cloud+Phii[kw][jw][iw][2]) *  \
+                  sin(2*PI*(jw+sim_k1)*x2/r_cloud+Phii[kw][jw][iw][1]) *  \
+                  sin(2*PI*(iw+sim_k1)*x1/r_cloud+Phii[kw][jw][iw][0]);
+              }
+            }
+          }
+          Real rhofac = ((rho - 1) * exp(alpha_exp*f) + 1) / rho;
+          rho = rho * rhofac;
+          eint = eint * rhofac; // keep temperature constant (otherwise < floor)
+        }
+
+        /* Double check temperature */
+        if(eint * Gamma_1 / rho < (MAX(tfloor, tfloor_cooling) * (1-1e-5)))
+          printf("[init problem] too low temp r = %g, (%d,%d,%d), P=%g, rho=%g, tfloor=%g, tfloor_cooling=%g\n",
+                 r, k,i,j, eint * Gamma_1, rho, tfloor, tfloor_cooling);
+
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
 #ifndef ISOTHERMAL
-        pGrid->U[k][j][i].E = press;
+        pGrid->U[k][j][i].E = eint;
 #endif  /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
@@ -422,28 +478,9 @@ void problem(DomainS *pDomain)
 
 
   /* seed a perturbation */
-  if(perturb_sigma_cloud > 0) {
-    ath_pout(0, "[setup] Seeding perturbations with in cloud perturb_sigma_cloud = %e and sigma_max_cloud = %e\n",
-	     perturb_sigma_cloud, perturb_max_cloud);
-    for (k=ks; k<=ke; k++) {
-      for (j=js; j<=je; j++) {
-        for (i=is; i<=ie; i++) {
-	  if(pGrid->U[k][j][i].d > 1 + 1e-5) { // only inside of cloud
-	    cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	    fact = -1.0;
-	    while((fabs(fact) > perturb_max_cloud) || (fact < -1.0+1e-5))
-	      fact = (RandomNormal(0.0, perturb_sigma_cloud));
-	    if(fabs(fact) < perturb_max_cloud)
-	      pGrid->U[k][j][i].d *= (1.0+fact);
-	  }
-	}
-      }
-    }
-  }
-
   if(perturb_sigma > 0) {
     ath_pout(0, "[setup] Seeding perturbations with perturb_sigma = %e and sigma_max = %e\n",
-	     perturb_sigma, perturb_max);
+             perturb_sigma, perturb_max);
     for (k=ks; k<=ke; k++) {
       for (j=js; j<=je; j++) {
         for (i=is; i<=ie; i++) {
