@@ -297,12 +297,18 @@ void problem(DomainS *pDomain)
         Real dens = (rho_c-rho_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + rho_h;
 
         // Constant pressure everywhere
-        //Real press = rho_h*thot;
+        Real press = rho_h*thot;
 
         // Cold already at low pressure
-        Real press_h = rho_h*thot;
-        Real press_c = press_h / X;
-        Real press = (press_c-press_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + press_h;
+        //Real press_h = rho_h*thot;
+        //Real press_c = press_h / X;
+        //Real press = (press_c-press_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + press_h;
+
+	// Cold gas overpressured (but at floor)
+        //Real press_h = rho_h*thot / X;
+        //Real press_c = press_h * X;
+        //Real press = (press_c-press_h)* 1.0 * (0.5 - atan((x-x_boundary)/dr)/PI) + press_h;
+
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = dens;

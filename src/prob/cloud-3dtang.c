@@ -174,7 +174,7 @@ static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
 #endif
 static Real scalefac = 1.0;
 
-static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc;
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc, v_cloud;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
@@ -270,6 +270,7 @@ void problem(DomainS *pDomain)
   v_rot  = par_getd_def("problem", "v_rot",  0.0);
 
   r_cloud = par_getd_def("problem", "r_cloud", 0.25);
+  v_cloud = par_getd_def("problem", "v_cloud", 0.0);
   l_cloud = par_getd_def("problem", "l_cloud", 0.0);
   dr = par_getd_def("problem", "dr", 0.0);
 
@@ -473,7 +474,7 @@ void problem(DomainS *pDomain)
           }
         } else { //      begin: do not read grid from file
           if (r < r_cloud) {
-            vx   = -(x2/r_cloud) * v_rot;
+            vx   = -(x2/r_cloud) * v_rot + v_cloud;
             vy   =  (x1/r_cloud) * v_rot;
 
             rho  *= drat;
@@ -488,6 +489,7 @@ void problem(DomainS *pDomain)
             rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
             vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
             vx   += -(x2/r_cloud) * v_rot;
+	    vx   += v_cloud;
             vy   =  (x1/r_cloud) * v_rot;
 #if (NSCALARS > 0)
             // This line means that the dye does not follow the density in the boundary (dr) region
@@ -1150,16 +1152,20 @@ void Userwork_in_loop(MeshS *pM)
   // Artificial shift
   //dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
 
+  /* if(pM->time < 2)
+     dvx = 0; 
+  */
+
   if((dvx < 0.0) || isnan(dvx)){ 
     ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
     dvx = 0.0;
   }
 
   /* Enforcing ceiling to  shift */
-  /* if(dvx > 0.05) {
-    dvx = 0.05;
-    ath_pout(0,"[bad dvx:] %0.15e setting to 0.05\n",dvx);
-    } */
+  if(dvx > 1e-2) {
+    dvx = 1e-2;
+    ath_pout(0,"[bad dvx:] %0.15e setting to 0.01\n",dvx);
+  }
 
   if(dvx > 0.0){
     expt = floor(log10(dvx));
