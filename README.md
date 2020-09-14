@@ -1,7 +1,16 @@
-cloud crushing version edited by Ryan, Mike, and Max.
+Cloud crushing version edited by Ryan, Mike, and Max.
 
 
-# Configure
+# Configure & compile
+
+
+## On stampede
+
+```
+module purge
+module load intel/18.0.2 impi/18.0.2
+module list
+```
 
 ```
  # MHD
@@ -10,6 +19,12 @@ cloud crushing version edited by Ryan, Mike, and Max.
  # Hydrodynamical
  ./configure --with-problem=cloud-3dtang --with-order=2p --enable-mpi --with-flux=hllc --with-nscalars=1 --with-gas=hydro --with-integrator=vl
 ```
+
+# Units
+
+It's all in code units with `rho_hot = 1`. 
+So `rho_cl = drat` from the config. Default pressure is `gamma - 1 + dp` where `dp` can also be adjusted by the config. The fiducial temperature of `(5/3 - 1 - 0.6)/ 100. ~ 6.6667e-4` (see below) corresponds to 4e4K.
+
 
 # Example input file
 

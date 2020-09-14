@@ -123,7 +123,7 @@ static Real kappa_iso, kappa_aniso;
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
-
+/* Choose cooling curve here */
 #include "prob/cooling_data/SD93_Z1.h"
 //#include "prob/cooling_data/denstest.h"
 //#include "prob/cooling_data/WSS09_z0_Z1.h"
@@ -233,12 +233,12 @@ void problem(DomainS *pDomain)
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
   Real bscale, ascale;
-  int tangled;
+  int tangled = 0;
 #if (NSCALARS > 0)
   Real dye;
 #endif
 
-  drat   = par_getd("problem", "drat");
+  drat   = par_getd("problem", "drat");                // rho_cold / rho_hot
 #ifdef FLOW_PROFILE
   vflow = 0.0;
 #else
@@ -250,7 +250,7 @@ void problem(DomainS *pDomain)
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
-  acc = par_getd_def("problem","acceleration",0.0);
+  acc = par_getd_def("problem","acceleration",0.0);    // accelerated wind
 
 #ifdef EXPAND_DOMAIN
   scalefac = 1.0;
@@ -266,32 +266,32 @@ void problem(DomainS *pDomain)
   betafloor = par_getd_def("problem", "betafloor", 3.e-3);
 #endif
 
-  v_turb = par_getd_def("problem", "v_turb", 0.0);
-  v_rot  = par_getd_def("problem", "v_rot",  0.0);
+  v_turb = par_getd_def("problem", "v_turb", 0.0);     // turbulent velocity in cloud (untested!)
+  v_rot  = par_getd_def("problem", "v_rot",  0.0);     // rotating cloud (untested!)
 
-  r_cloud = par_getd_def("problem", "r_cloud", 0.25);
-  v_cloud = par_getd_def("problem", "v_cloud", 0.0);
-  l_cloud = par_getd_def("problem", "l_cloud", 0.0);
+  r_cloud = par_getd_def("problem", "r_cloud", 0.25);  // size of cloud
+  v_cloud = par_getd_def("problem", "v_cloud", 0.0);   // extra cloud velocity
+  l_cloud = par_getd_def("problem", "l_cloud", 0.0);   // extra length of cloud along stream
   dr = par_getd_def("problem", "dr", 0.0);
 
-  /*Real tfloor    = 1.0e-2 / drat;
-  Real tceil     = 100.0;
-  Real rhofloor  = 1.0e-2;
-  Real betafloor = 3.0e-3;
-  */
-  // note that there's another tfloor in the cooling function 
-  tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
-  tceil = par_getd_def("problem", "tceil", 100.);
+  tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);  // cooling floor.
+                 // note that there's another tfloor in the cooling function
+
+  tceil = par_getd_def("problem", "tceil", 100.);          // no T above this
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
-  dens_conv = par_getd_def("problem", "dens_conv", 1.0);
+  dens_conv = par_getd_def("problem", "dens_conv", 1.0);   // for density
+                                                           // dependent cooling
 
-  dp = par_getd_def("problem", "dp", 0.0);
-  tnotcool = par_getd_def("problem", "tnotcool", -1.0);
+  dp = par_getd_def("problem", "dp", 0.0);                 // variation of overall pressure
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0);    // no cooling above this
+
+  // temp floor in cooling routine. effectively max(tfloor,tfloor_cooling) is
+  // the temperture floor
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
 #if ENERGY_HEATING == 2 // fixed heating
-  heating_rate = par_getd("problem","heating");
+  heating_rate = par_getd("problem","heating");   // fixed heating rate
 #endif /* ENERGY_HEATING == 2 */
 
 
@@ -338,16 +338,17 @@ void problem(DomainS *pDomain)
   //  CoolingFunc = instant_cool;
 #endif
 
-  dump_history_enroll(hst_m13, "m13");
-  dump_history_enroll(hst_m110, "m110");
-  dump_history_enroll(hst_mT2, "mT2");
-  dump_history_enroll(hst_Mx13, "Mx13");
+  /* Add additional output in hst file */
+  dump_history_enroll(hst_m13, "m13");    // mass(rho > rho_cl / 3)
+  dump_history_enroll(hst_m110, "m110");  // mass(rho > rho_cl / 10)
+  dump_history_enroll(hst_mT2, "mT2");    // mass(T < T_cl /2)
+  dump_history_enroll(hst_Mx13, "Mx13");  // Momentum(rho > rho_cl / 3)
 
-  dump_history_enroll(hst_Erad, "Erad");
+  dump_history_enroll(hst_Erad, "Erad");  // Total radiated energy
 
 #ifdef FOLLOW_CLOUD
-  dump_history_enroll_alt(hst_xshift, "x_shift");
-  dump_history_enroll_alt(hst_vflow,  "v_flow");
+  dump_history_enroll_alt(hst_xshift, "x_shift"); // Total shift
+  dump_history_enroll_alt(hst_vflow,  "v_flow");  // Current inflow velocity
 #endif
 
 #ifdef EXPAND_DOMAIN
@@ -355,6 +356,7 @@ void problem(DomainS *pDomain)
 #endif
 
 #if (NSCALARS > 0)
+  // Various concentrations
   dump_history_enroll(hst_c,    "<c>");
   dump_history_enroll(hst_c_sq, "<c^2>");
 
@@ -437,10 +439,6 @@ void problem(DomainS *pDomain)
         vy  = flow_profile_velocity_y(x1, x2, x3);
         vz  = flow_profile_velocity_z(x1, x2, x3);
 
-
-        /* if((j == js) && (k== ks)) */
-        /*   printf("%.2f --> (%e, %e)\n", x1, rho, vx); */
-
 #else // Static inflow
         rho  = 1.0;
         // Fix pressure so that temperature is normed to what it was with drat=1e3
@@ -493,7 +491,7 @@ void problem(DomainS *pDomain)
             vy   =  (x1/r_cloud) * v_rot;
 #if (NSCALARS > 0)
             // This line means that the dye does not follow the density in the boundary (dr) region
-            if(r < r_cloud){ 
+            if(r < r_cloud){
               dye = rho;
             }
 #endif
@@ -557,7 +555,8 @@ void problem(DomainS *pDomain)
     }
   } /* end grid loops */
 
-  if(fp_rho != NULL) {
+  // close file if ICs are read from file
+  if(fp_rho != NULL) { 
     fclose(fp_rho);
     free(cloud_dat_rho);
     if(nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
@@ -565,9 +564,9 @@ void problem(DomainS *pDomain)
                 ndim_file[0] * ndim_file[1] * ndim_file[2]);
   }
 
+  /* MHD part --> generate tangled magnetic field in cloud */
   if(tangled){
     A = (Real3Vect***) calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
-
 
     for (k=0; k<nx3; k++) {
       for (j=0; j<nx2; j++) {
@@ -576,7 +575,6 @@ void problem(DomainS *pDomain)
         }
       }
     }
-
 
     nterms = par_getd_def("problem", "nterms",10);
     alpha = par_getd_def("problem","alpha",50.0);
