@@ -58,17 +58,15 @@ x3max           = 15.0
 x3min           = -15.0
 
 <problem>
-Bz              = 0.365   # not needed in HD
-betafloor       = 0.00   # not needed in HD1
+betafloor       = 1e-3   # not needed in HD
 betain          = 10.0   # not needed in HD
-betaout         = 1e+20   # not needed in HD
-d_MIN           = 0.001 
+betaout_z       = 1e+20   # not needed in HD
 dp              = -0.6 # sets global pressure. P = Gamma - 1 + dp
 dr              = 0.046875 # border of cloud in units of r_cl
 drat            = 100.0 # density ratio
 dtmin           = 1e-09 
 gamma           = 1.66666666667
-nterms          = 10.0    # not needed in HD
+nterms          = 10.0    # not needed in HD, number of tangles in MHD
 r_cloud         = 2.5 # radius of cloud
 tnotcool        = 0.04 # switch off cooling above this T
 vflow           = 0.5 # flow speed
