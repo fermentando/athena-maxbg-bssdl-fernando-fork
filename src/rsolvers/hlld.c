@@ -34,6 +34,8 @@
 #ifdef HLLD_FLUX
 #ifndef SPECIAL_RELATIVITY
 
+Real etah=0.0;
+
 #define SMALL_NUMBER 1e-8
 
 #ifndef MHD
