@@ -1,4 +1,4 @@
-include "copyright.h"
+#include "copyright.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
