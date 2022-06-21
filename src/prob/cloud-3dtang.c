@@ -1,4 +1,4 @@
-#include "copyright.h"
+include "copyright.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -499,19 +499,20 @@ void problem(DomainS *pDomain)
 
           if((r < r_cloud) && (iprint == 0)) {
 #ifdef FLOW_PROFILE
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
                      sqrt(drat) * r_cloud / vx,
                      tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
 #else
 
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g\n",
+            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g\n",
                      sqrt(drat) * r_cloud / vflow,
 #ifdef ENERGY_COOLING
                      tcool(drat, (Gamma_1 + dp) / drat),
 #else
-               	      -1,
+                     -1, -1
 #endif
-                     (Gamma_1 + dp) / drat
+                     (Gamma_1 + dp) / drat,
+                     tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat)
                      );
 #endif
             iprint = 1;
@@ -781,7 +782,7 @@ void problem(DomainS *pDomain)
   Bmax = sqrt(Bmax);
   Bmax_cloud = sqrt(Bmax_cloud);
 
-  ath_pout(0, "Brms = %f, Bmax = %f, Bmax_cloud = %f, "
+  ath_pout(0, "[init_prob] Brms = %f, Bmax = %f, Bmax_cloud = %f, "
            "beta_rms = %f, beta_max = %f, beta_cloud_max = %f\n",
            Brms, Bmax, Bmax_cloud,
            2 * (Gamma_1 + dp) / SQR(Brms),
