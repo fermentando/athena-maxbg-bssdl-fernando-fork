@@ -18,6 +18,7 @@
 //#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
 //#define INSTANTCOOL
 #define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
+// #define SHOCK // shock instead of constant wind
 /* ----------------------------------------- */
 
 #ifdef MPI_PARALLEL
@@ -443,8 +444,10 @@ void problem(DomainS *pDomain)
         rho  = 1.0;
         // Fix pressure so that temperature is normed to what it was with drat=1e3
         // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
+#ifndef SHOCK
         vx   = vflow;
 #endif
+#endif // end static inflow
 
 #if (NSCALARS > 0)
         dye = 0.0;
@@ -465,7 +468,9 @@ void problem(DomainS *pDomain)
             rho = cloud_dat_rho[kk * ndim_file[2] * ndim_file[1] + jj * ndim_file[1] + ii];
             if(rho < 0) ath_error("Found rho < 0 in grid file!");
             rho = rho * (drat - 1.0);
+#if (NSCALARS > 0)
             dye = rho;
+#endif
             rho += 1.0; // also add wind density --> @Cameron: you need to change this!
             vx = 0.0; // Not necessarily valid if vflow > 0!
             nreadwrite++;
