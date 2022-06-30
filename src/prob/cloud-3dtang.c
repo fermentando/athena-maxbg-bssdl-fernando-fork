@@ -490,9 +490,11 @@ void problem(DomainS *pDomain)
             ath_error("dr > 0 with flow profile not (yet) supported.\n");
 #endif
             rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
+#ifndef SHOCK
             vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
+#endif
+            vx   += v_cloud;
             vx   += -(x2/r_cloud) * v_rot;
-	    vx   += v_cloud;
             vy   =  (x1/r_cloud) * v_rot;
 #if (NSCALARS > 0)
             // This line means that the dye does not follow the density in the boundary (dr) region
