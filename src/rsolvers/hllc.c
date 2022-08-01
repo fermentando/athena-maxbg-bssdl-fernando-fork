@@ -32,9 +32,8 @@
 
 #ifdef HLLC_FLUX
 /* maximum wavespeed used by H-correction, value passed from integrator */
-#ifdef H_CORRECTION
+
 Real etah=0.0;
-#endif
 
 #ifndef SPECIAL_RELATIVITY
 
