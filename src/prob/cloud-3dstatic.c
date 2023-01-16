@@ -291,7 +291,8 @@ void problem(DomainS *pDomain)
   */
 
   // Make it static & rescale to cloud radius
-  Real roff[3][nclouds] = {
+  // Ugly hardcoded nclouds here...
+  Real roff[][4] = {
     {0.000000e+00, -3.875666e-01, 6.827926e-01, -1.468674e+00},
     {0.000000e+00, -1.468674e+00, 1.818112e+00, -1.249358e+00},
     {0.000000e+00, -1.249358e+00, -9.917218e-01, 0.000000e+00}
@@ -484,7 +485,7 @@ void problem(DomainS *pDomain)
     for (k=ks; k<=ke; k++) {
       for (j=js; j<=je; j++) {
         for (i=is; i<=ie; i++) {
-          cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+          //cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
           fact = -1.0;
           while((fabs(fact) > perturb_max) || (fact < -1.0+1e-5))
             fact = (RandomNormal(0.0, perturb_sigma));
