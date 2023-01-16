@@ -503,27 +503,15 @@ void problem(DomainS *pDomain)
             }
 #endif
           }
-
-          if((r < r_cloud) && (iprint == 0)) {
 #ifdef FLOW_PROFILE
-            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+	  // with flow profile we have to print inside the cloud, thus cannot just use the root proc
+          if((r < r_cloud) && (iprint == 0)) {
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
                      sqrt(drat) * r_cloud / vx,
                      tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
-#else
-
-            ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g\n",
-                     sqrt(drat) * r_cloud / vflow,
-#ifdef ENERGY_COOLING
-                     tcool(drat, (Gamma_1 + dp) / drat),
-#else
-                     -1, -1
-#endif
-                     (Gamma_1 + dp) / drat,
-                     tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat)
-                     );
-#endif
-            iprint = 1;
-          } /* endif printing */
+	    iprint = 1;
+	  }
+#endif	    
 
         } //             end: do not read grid from file
 
@@ -562,6 +550,20 @@ void problem(DomainS *pDomain)
       }
     }
   } /* end grid loops */
+
+  // Some info printed
+  ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
+	   sqrt(drat) * r_cloud / vflow,
+#ifdef ENERGY_COOLING
+	   tcool(drat, (Gamma_1 + dp) / drat),
+#else
+	   -1, -1
+#endif
+	   (Gamma_1 + dp) / drat,
+	   tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
+	   tcool(1., drat * (Gamma_1 + dp))
+	   );
+
 
   // close file if ICs are read from file
   if(fp_rho != NULL) { 
