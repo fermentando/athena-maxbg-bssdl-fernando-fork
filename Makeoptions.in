@@ -43,6 +43,18 @@ endif
 #    ophir> make all MACHINE=ophir
 # New machines can be added to ifeq blocks below.
 
+ifeq ($(MACHINE),freya)
+  CC = $(GCC_HOME)/bin/gcc
+  LDR = $(GCC_HOME)/bin/gcc
+  OPT = -O3
+else
+ifeq ($(MACHINE),freya-mpi)
+  CC = $(OPENMPI_HOME)/bin/mpicc
+  LDR = $(OPENMPI_HOME)/bin/mpicc
+  OPT = -O3 -g
+  MPIINC = -I$(OPENMPI_HOME)/include
+  MPILIB = -L$(OPENMPI_HOME)/lib -lmpi
+else
 ifeq ($(MACHINE),kraken)
   CC = cc
   LDR = cc
@@ -95,12 +107,9 @@ ifeq ($(MACHINE),macosx)
   OPT = -O3 
   FFTWLIB = -L/opt/local/lib -lfftw3
   FFTWINC = -I/opt/local/include
-ifeq ($(MACHINE),santana)
-  CC = clang
-  LDR = clang
-  OPT = -g
 else
   abort Unsupported MACHINE=$(MACHINE)
+endif
 endif
 endif
 endif
