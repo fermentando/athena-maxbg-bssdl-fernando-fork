@@ -16,8 +16,8 @@
 #define ENERGY_COOLING       // Cooling
 //#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
 //#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
-//#define INSTANTCOOL
-#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating
+//#define INSTANTCOOL        //Test cooling 
+#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating REMOVED ENERGY_HEATING 2
 // #define SHOCK // shock instead of constant wind
 /* ----------------------------------------- */
 
@@ -28,13 +28,8 @@
 #define MPI_RL MPI_FLOAT
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
-
-#ifdef PARTICLES
-#include "particles/particle.h"
-#endif
-#ifdef EXPAND_DOMAIN
-#include "prob/expand_domain.h"
-#endif
+ //particles raus
+ // MHD raus
 
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -85,41 +80,14 @@ static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k);
 static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k);
 #endif
 
-#ifdef MHD
-static Real hst_cBx(const GridS *pG, const int i, const int j, const int k);
-static Real hst_cBy(const GridS *pG, const int i, const int j, const int k);
-static Real hst_cBz(const GridS *pG, const int i, const int j, const int k);
-#endif  /* MHD */
-
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
 #endif  /* NSCALARS */
-
-#ifdef PARTICLES
-static int parnumproc;
-
-void init_particles(DomainS *pDomain);
-void add_new_particles(MeshS *pM);
-#endif
-
 
 #ifdef REPORT_NANS
 static int report_nans(MeshS *pM, DomainS *pDomain, int fix);
 static OutputS nan_dump;
 static int nan_dump_count;
 #endif  /* REPORT_NANS */
-
-#ifdef FLOW_PROFILE
-#include "prob/flow_profile/cc85_fit.h"
-#endif /* FLOW_PROFILE */
-
-#ifdef THERMAL_CONDUCTION
-Real KappaFun_i_constant(const Real d, const Real T,
-                         const Real x1, const Real x2, const Real x3);
-Real KappaFun_a_constant(const Real d, const Real T,
-                         const Real x1, const Real x2, const Real x3);
-static Real kappa_iso, kappa_aniso;
-#endif /* THERMAL_CONDUCTION */
-
 
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
@@ -165,27 +133,13 @@ static Real x_shift;
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
 static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 #endif
-#ifdef EXPAND_DOMAIN
-static void expand_domain(DomainS *pDomain, Real scale);
-static int ed_exp_mode();
-static Real r0;     // starting position
-static Real rbreak; // radius of expansion mode change
 
-static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k);
-#endif
 static Real scalefac = 1.0;
 
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc, v_cloud;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
-
-#ifdef VISCOSITY
-static Real nu_fun(const Real d, const Real T,
-                   const Real x1, const Real x2, const Real x3);
-
-static Real nu;
-#endif  /* VISCOSITY */
 
 #if ENERGY_HEATING == 2 // fixed heating
 static Real heating_rate;
@@ -200,9 +154,6 @@ static Real pro(Real r, Real rcloud)
 
 static Real get_pressure(ConsS *u) {
   Real E0 = 0.5 * (SQR(u->M1) + SQR(u->M2) + SQR(u->M3)) / u->d;
-#ifdef MHD
-  E0 += 0.5 * (SQR(u->B1c) + SQR(u->B2c) + SQR(u->B3c));
-#endif  /* MHD */
 
   return (u->E - E0) * Gamma_1;
 }
@@ -240,11 +191,7 @@ void problem(DomainS *pDomain)
 #endif
 
   drat   = par_getd("problem", "drat");                // rho_cold / rho_hot
-#ifdef FLOW_PROFILE
-  vflow = 0.0;
-#else
   vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
-#endif
   vflow0 = vflow;
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
   //vflow = 0.1 * vflow;
@@ -252,20 +199,6 @@ void problem(DomainS *pDomain)
   x_shift = 0.0;
 #endif
   acc = par_getd_def("problem","acceleration",0.0);    // accelerated wind
-
-#ifdef EXPAND_DOMAIN
-  scalefac = 1.0;
-  r0     = par_getd("problem", "r0");
-  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER); // default: mode 0
-#endif
-
-#ifdef MHD
-  tangled = par_getd_def("problem","tangled",1);
-  betain = par_getd("problem", "betain");
-  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
-  betaout_z = par_getd("problem", "betaout_z");
-  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
-#endif
 
   v_turb = par_getd_def("problem", "v_turb", 0.0);     // turbulent velocity in cloud (untested!)
   v_rot  = par_getd_def("problem", "v_rot",  0.0);     // rotating cloud (untested!)
@@ -295,23 +228,11 @@ void problem(DomainS *pDomain)
   heating_rate = par_getd("problem","heating");   // fixed heating rate
 #endif /* ENERGY_HEATING == 2 */
 
-
+ 
 #ifdef VISCOSITY
   nu   = par_getd("problem","nu");
   NuFun_i = NULL;
   NuFun_a = nu_fun;
-#endif
-
-#ifdef THERMAL_CONDUCTION
-  kappa_iso = par_getd_def("problem","kappa_iso",0.0);
-  kappa_aniso = par_getd_def("problem","kappa_aniso",0.0);
-
-  if(kappa_iso > 0.0)
-    KappaFun_i = &KappaFun_i_constant;
-  if(kappa_aniso > 0.0)
-    KappaFun_a = &KappaFun_a_constant;
-
-  //printf("Kappa_fun_i %e\n", (*KappaFun_i)(1.,1.,1.,2.,3.));
 #endif
 
   iseed = -10;
@@ -324,10 +245,6 @@ void problem(DomainS *pDomain)
 #if (NSCALARS == 0)
   ath_error("[problem]: requires NSCALARS > 0.\n");
 #endif
-#endif
-
-#ifdef FLOW_PROFILE
-  flow_profile_init();
 #endif
 
 #ifdef ENERGY_COOLING
@@ -352,10 +269,6 @@ void problem(DomainS *pDomain)
   dump_history_enroll_alt(hst_vflow,  "v_flow");  // Current inflow velocity
 #endif
 
-#ifdef EXPAND_DOMAIN
-  dump_history_enroll_alt(hst_scalefac,  "scalefac");
-#endif
-
 #if (NSCALARS > 0)
   // Various concentrations
   dump_history_enroll(hst_c,    "<c>");
@@ -371,11 +284,6 @@ void problem(DomainS *pDomain)
   dump_history_enroll(hst_cvx_sq, "<(c * Vx)^2>");
   dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
   dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
-#ifdef MHD
-  dump_history_enroll(hst_cBx, "<c * Bx>");
-  dump_history_enroll(hst_cBy, "<c * By>");
-  dump_history_enroll(hst_cBz, "<c * Bz>");
-#endif /* MHD */
   dump_history_enroll(hst_Sdye, "dye entropy");
   /*
 #ifdef ENERGY_COOLING
@@ -434,20 +342,14 @@ void problem(DomainS *pDomain)
         //r = sqrt(x1*x1+x2*x2+x3*x3);
         r = sqrt(pow(MIN(MAX(x1 - l_cloud, 0), x1), 2) + x2*x2 + x3*x3);
 
-#ifdef FLOW_PROFILE
-        rho = flow_profile_density(x1, x2, x3);
-        vx  = flow_profile_velocity_x(x1, x2, x3);
-        vy  = flow_profile_velocity_y(x1, x2, x3);
-        vz  = flow_profile_velocity_z(x1, x2, x3);
 
-#else // Static inflow
-        rho  = 1.0;
-        // Fix pressure so that temperature is normed to what it was with drat=1e3
-        // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
+    // Static inflow
+    rho  = 1.0;
+    // Fix pressure so that temperature is normed to what it was with drat=1e3
+    // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
 #ifndef SHOCK
-        vx   = vflow;
+    vx   = vflow;
 #endif
-#endif // end static inflow
 
 #if (NSCALARS > 0)
         dye = 0.0;
@@ -486,9 +388,6 @@ void problem(DomainS *pDomain)
 #endif
           }
           if (dr > 0.0){
-#ifdef FLOW_PROFILE
-            ath_error("dr > 0 with flow profile not (yet) supported.\n");
-#endif
             rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
 #ifndef SHOCK
             vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
@@ -503,15 +402,6 @@ void problem(DomainS *pDomain)
             }
 #endif
           }
-#ifdef FLOW_PROFILE
-	  // with flow profile we have to print inside the cloud, thus cannot just use the root proc
-          if((r < r_cloud) && (iprint == 0)) {
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
-                     sqrt(drat) * r_cloud / vx,
-                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
-	    iprint = 1;
-	  }
-#endif	    
 
         } //             end: do not read grid from file
 
@@ -531,11 +421,7 @@ void problem(DomainS *pDomain)
 
         // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-#ifdef FLOW_PROFILE
-        pGrid->U[k][j][i].E = flow_profile_pressure(x1, x2, x3) / Gamma_1;
-#else
-        pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
-#endif /* FLOW_PROFILE */
+pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
         pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx)+SQR(vy)+SQR(vz));
 #endif  /* not ISOTHERMAL */
 
@@ -644,66 +530,7 @@ void problem(DomainS *pDomain)
 
 
   /* take curl here */
-#ifdef MHD
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie+1; i++) {
-        pGrid->B1i[k][j][i] = 0.0;
-        if(tangled){
-          pGrid->B1i[k][j][i] = (A[k][j+1][i].x3 - A[k][j][i].x3)/pGrid->dx2 -
-            (A[k+1][j][i].x2 - A[k][j][i].x2)/pGrid->dx3;
-        }
-      }
-    }
-  }
 
-  Bout_z = sqrt(2.0 * (Gamma_1 + dp) / betaout_z);
-  Bout_y = sqrt(2.0 * (Gamma_1 + dp) / betaout_y);
-  if(betaout_y < 10.)
-    ath_error("Strong By not fully supported yet. Need to change thermal pressure.");
-
-  ju = (pGrid->Nx[1] > 1) ? je+1 : je;  //so we don't go beyond array in 2d 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B2i[k][j][i] = 0.0;
-        if(tangled){
-          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          bscale = 0.5+0.5*tanh((-r_cloud*3.-x1)*3./r_cloud);
-          pGrid->B2i[k][j][i] = (A[k+1][j][i].x1 - A[k][j][i].x1)/pGrid->dx3 -
-            (A[k][j][i+1].x3 - A[k][j][i].x3)/pGrid->dx1 + bscale * Bout_y;
-        }
-        else{
-          pGrid->B2i[k][j][i] = Bout_y;
-        }
-      }
-    }
-  }
-
-  ku = (pGrid->Nx[2] > 1) ? ke+1 : ke; //so we don't go beyond array in 2d
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        pGrid->B3i[k][j][i] = 0.0;
-        if(tangled){
-          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          bscale = 0.5+0.5*tanh((-x1/1.5 - 5)/r_cloud);
-          ascale = 0.5 * SQR(Bout_z) * (1 - SQR(bscale)) / (Gamma_1 + dp) + 1;
-          // Ensure total pressure is constant
-          pGrid->U[k][j][i].E += (ascale - 1) * (Gamma_1 + dp) / Gamma_1;
-          pGrid->B3i[k][j][i] = (A[k][j][i+1].x2 - A[k][j][i].x2)/pGrid->dx1 -
-            (A[k][j+1][i].x1 - A[k][j][i].x1)/pGrid->dx2 + bscale * Bout_z;
-
-        }
-        else{
-          pGrid->B3i[k][j][i] = Bout_z;
-        }
-      }
-    }
-  }
-
-
-#endif
    if(tangled){
      free_3d_array((void***) A);
    }
@@ -713,98 +540,10 @@ void problem(DomainS *pDomain)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
-#ifdef MHD
-        pGrid->U[k][j][i].B1c =
-          0.5 * (pGrid->B1i[k][j][i] + pGrid->B1i[k][j][i+1]);
-        pGrid->U[k][j][i].B2c = pGrid->B2i[k][j][i];
-        pGrid->U[k][j][i].B3c = pGrid->B3i[k][j][i];
-
-        if (pGrid->Nx[1] > 1)
-          pGrid->U[k][j][i].B2c =
-            0.5 * (pGrid->B2i[k][j][i] + pGrid->B2i[k][j+1][i]);
-        if (pGrid->Nx[2] > 1)
-          pGrid->U[k][j][i].B3c =
-            0.5 * (pGrid->B3i[k][j][i] + pGrid->B3i[k+1][j][i]);
-
-#ifndef ISOTHERMAL
-        /* add magnetic energy to the total energy */
-        pGrid->U[k][j][i].E +=
-          0.5 * (SQR(pGrid->U[k][j][i].B1c)+SQR(pGrid->U[k][j][i].B2c)+
-                 SQR(pGrid->U[k][j][i].B3c));
-#endif  /* ISOTHERMAL */
-#endif  /* MHD */
       }
     }
   }
 
-#ifdef MHD
-
-
-  /* -- Some checks -- */
-  Brms = Bmax = Bmax_cloud = 0.0;
-  ncells = 0.0;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-
-        Bs = (SQR(pGrid->U[k][j][i].B1c) +
-              SQR(pGrid->U[k][j][i].B2c) +
-              SQR(pGrid->U[k][j][i].B3c));
-
-        if(Bs > 1.e-6){
-          Brms += Bs;
-          ncells += 1.0;
-        }
-        Bmax = MAX(Bmax, Bs);
-
-        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-        r = sqrt(x1*x1 + x2*x2 + x3*x3);
-        if (r < r_cloud)
-          Bmax_cloud = MAX(Bmax_cloud, Bs);
-      }
-    }
-  }
-
-#ifdef MPI_PARALLEL
-  my_scal[0] = Brms;
-  my_scal[1] = ncells;
-
-  ierr = MPI_Allreduce(&my_scal, &scal, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-  if (ierr)
-    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
-
-  Brms   = scal[0];
-  ncells = scal[1];
-
-  my_scal[0] = Bmax;
-  my_scal[1] = Bmax_cloud;
-
-  ierr = MPI_Allreduce(&my_scal, &scal, 2, MPI_RL, MPI_MAX, MPI_COMM_WORLD);
-  if (ierr)
-    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
-
-  Bmax   = scal[0];
-  Bmax_cloud   = scal[1];
-#endif
-
-  Brms = sqrt(Brms/ncells);
-  Bmax = sqrt(Bmax);
-  Bmax_cloud = sqrt(Bmax_cloud);
-
-  ath_pout(0, "[init_prob] Brms = %f, Bmax = %f, Bmax_cloud = %f, "
-           "beta_rms = %f, beta_max = %f, beta_cloud_max = %f\n",
-           Brms, Bmax, Bmax_cloud,
-           2 * (Gamma_1 + dp) / SQR(Brms),
-           2 * (Gamma_1 + dp) / SQR(Bmax), 2 * (Gamma_1 + dp) / SQR(Bmax_cloud));
-  /* ath_error("Brms = %f\tBmax = %f\n", Brms, Bmax); */
-
-
-#endif //MHD
-
-
-#ifdef MHD
-  check_div_b(pGrid);
-#endif //MHD
 
   if (pDomain->Disp[0] == 0)
     bvals_mhd_fun(pDomain, left_x1,  bc_ix1);
@@ -825,10 +564,6 @@ void problem(DomainS *pDomain)
     }
    }
 
-#ifdef PARTICLES
-   init_particles(pDomain);
-#endif
-
 #if ENERGY_HEATING == 2
    ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
             heating_rate, sdLambda(drat,(Gamma_1 + dp) / drat));
@@ -836,9 +571,6 @@ void problem(DomainS *pDomain)
 
   return;
 }
-
-
-
 
 /*==============================================================================
  * PROBLEM USER FUNCTIONS:
@@ -856,9 +588,6 @@ void problem_write_restart(MeshS *pM, FILE *fp)
 #ifdef FOLLOW_CLOUD
   fwrite(&x_shift, sizeof(Real), 1, fp);
   fwrite(&vflow,   sizeof(Real), 1, fp);
-#endif
-#ifdef EXPAND_DOMAIN
-  fwrite(&scalefac,   sizeof(Real), 1, fp);
 #endif
 
   return;
@@ -906,21 +635,6 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   NuFun_a = nu_fun;
 #endif
 
-#ifdef THERMAL_CONDUCTION
-  kappa_iso = par_getd_def("problem","kappa_iso",0.0);
-  kappa_aniso = par_getd_def("problem","kappa_aniso",0.0);
-
-  if(kappa_iso > 0.0)
-    KappaFun_i = &KappaFun_i_constant;
-  if(kappa_aniso > 0.0)
-    KappaFun_a = &KappaFun_a_constant;
-#endif
-
-#ifdef PARTICLES
-  parnumproc = (int)(par_geti("particle","parnumproc"));
-#endif
-
-
 #ifdef ENERGY_COOLING
   init_cooling();
 #endif
@@ -943,12 +657,6 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll_alt(hst_vflow,  "v_flow");
 #endif
 
-#ifdef EXPAND_DOMAIN
-  dump_history_enroll_alt(hst_scalefac,  "scalefac");
-  r0 = par_getd("problem", "r0");
-  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER);
-#endif
-
 #if (NSCALARS > 0)
   dump_history_enroll(hst_c,    "<c>");
   dump_history_enroll(hst_c_sq, "<c^2>");
@@ -963,11 +671,6 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll(hst_cvx_sq, "<(c * Vx)^2>");
   dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
   dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
-#ifdef MHD
-  dump_history_enroll(hst_cBx, "<c * Bx>");
-  dump_history_enroll(hst_cBy, "<c * By>");
-  dump_history_enroll(hst_cBz, "<c * Bz>");
-#endif /* MHD */
   dump_history_enroll(hst_Sdye, "dye entropy");
 #endif  /* NSCALARS */
 
@@ -983,11 +686,6 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   fread(&x_shift, sizeof(Real), 1, fp);
   fread(&vflow,   sizeof(Real), 1, fp);
 #endif
-#ifdef EXPAND_DOMAIN
-  fread(&scalefac,   sizeof(Real), 1, fp);
-#endif
-
-
   return;
 }
 
@@ -999,126 +697,6 @@ ConsFun_t get_usr_expr(const char *expr)
 VOutFun_t get_usr_out_fun(const char *name){
   return NULL;
 }
-
-#ifdef MHD
-static void check_div_b(GridS *pGrid)
-{
-  int i,j,k;
-  int is,js,ie,je,ks,ke;
-  int n;
-  Real divb[5],divcell,x,y,z;
-#ifdef MPI_PARALLEL
-  int ierr;
-  Real my_divb[5];
-#endif
-  int three_d = (pGrid->Nx[2] > 1) ? 1 : 0;
-
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
-
-
-  divb[0] = 0.0;
-  n = 0;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        divcell = (pGrid->B1i[k][j][i+1]-pGrid->B1i[k][j][i])/pGrid->dx1
-          + (pGrid->B2i[k][j+1][i]-pGrid->B2i[k][j][i])/pGrid->dx2;
-        if (three_d)
-          divcell+= (pGrid->B3i[k+1][j][i]-pGrid->B3i[k][j][i])/pGrid->dx3;
-        divb[0] += fabs(divcell);
-#if (NSCALARS > 1)
-        pGrid->U[k][j][i].s[1] = divcell;
-#endif
-
-        /*if(fabs(divcell) > 1.e-13){
-          cc_pos(pGrid,i,j,k,&x,&y,&z);
-
-          printf("bdv %e %d %d %d  %e  %e    %e %e %e\n", pGrid->time, i,j,k,  divcell, 1./pGrid->dx1, x,y,z);
-        }
-        */
-        n++;
-      }
-    }
-  }
-  //divb[0] /= n;
-
-  /* check divB along ix1: */
-  divb[1] = 0.0;
-  n=0;
-  k = ks;
-  i = is;
-  for (j=js; j<=je; j++) {
-    divb[1] +=
-      fabs((pGrid->B1i[k][j][i+1]-pGrid->B1i[k][j][i])/pGrid->dx1
-           + (pGrid->B2i[k][j+1][i]-pGrid->B2i[k][j][i])/pGrid->dx2);
-    n++;
-  }
-  divb[1] /= n;
-
-  /* check divB along ox1: */
-  divb[2] = 0.0;
-  n=0;
-  k = ks;
-  i = ie;
-  for (j=js; j<=je; j++) {
-    divb[2] +=
-      fabs((pGrid->B1i[k][j][i+1]-pGrid->B1i[k][j][i])/pGrid->dx1
-           + (pGrid->B2i[k][j+1][i]-pGrid->B2i[k][j][i])/pGrid->dx2);
-    n++;
-  }
-  divb[2] /= n;
-
-
-  /* check divB along ix2: */
-  divb[3] = 0.0;
-  n=0;
-  k = ks;
-  j = js;
-  for (i=is; i<=ie; i++) {
-    divb[3] +=
-      fabs((pGrid->B1i[k][j][i+1]-pGrid->B1i[k][j][i])/pGrid->dx1
-           + (pGrid->B2i[k][j+1][i]-pGrid->B2i[k][j][i])/pGrid->dx2);
-    n++;
-  }
-  divb[3] /= n;
-
-
-  /* check divB along ox2: */
-  divb[4] = 0.0;
-  n=0;
-  k = ks;
-  j = je;
-  for (i=is; i<=ie; i++) {
-    divb[4] +=
-      fabs((pGrid->B1i[k][j][i+1]-pGrid->B1i[k][j][i])/pGrid->dx1
-           + (pGrid->B2i[k][j+1][i]-pGrid->B2i[k][j][i])/pGrid->dx2);
-    n++;
-  }
-  divb[4] /= n;
-
-
-#ifdef MPI_PARALLEL
-  for (i=0; i<=4; i++)
-    my_divb[i] = divb[i];
-  ierr = MPI_Allreduce(&my_divb, &divb, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-  if (ierr)
-    ath_error("[check_div_b]: MPI_Allreduce returned error %d\n", ierr);
-#endif
-
-
-
-  if (three_d) {
-    ath_pout(0, "divb = %e\n", divb[0]);
-  } else {
-    ath_pout(0, "divb = %e\t%e\t%e\t%e\t%e\n",
-             divb[0], divb[1], divb[2], divb[3], divb[4]);
-  }
-
-  return;
-}
-#endif  /* MHD */
 
 void Userwork_before_loop(MeshS *pM)
 {
@@ -1150,10 +728,6 @@ void Userwork_in_loop(MeshS *pM)
 #ifdef FOLLOW_CLOUD
   Real dvx, newdvx, expt;
 #endif
-#ifdef EXPAND_DOMAIN
-  Real new_scalefac;
-#endif
-
 
 #ifdef FOLLOW_CLOUD
   dvx = cloud_mass_weighted_velocity(pM);
@@ -1192,38 +766,19 @@ void Userwork_in_loop(MeshS *pM)
   vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
-#ifdef EXPAND_DOMAIN
-  new_scalefac = (r0 + x_shift) / r0;
-  ath_pout(0,"[scalefac:] %0.10e [new:] %.10e [ratio - 1:] %.5e [mode:] %d\n",
-           scalefac, new_scalefac, new_scalefac / scalefac - 1., ed_exp_mode());
-#endif
-
-
-
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
       if (pM->Domain[nl][nd].Grid != NULL) {
 #ifdef FOLLOW_CLOUD
         boost_frame(&(pM->Domain[nl][nd]), dvx);
 #endif
-#ifdef EXPAND_DOMAIN
-        expand_domain((&(pM->Domain[nl][nd])), new_scalefac / scalefac);
-#endif
       }
     }
   }
-#ifdef EXPAND_DOMAIN
-  vflow = vflow * pow(new_scalefac / scalefac, ed_exp[ed_exp_mode()].vx);
-  scalefac = new_scalefac;
-#endif
-
 
   for (nl=0; nl<=(pM->NLevels)-1; nl++) {
     for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
       if (pM->Domain[nl][nd].Grid != NULL) {
-#ifdef MHD
-        check_div_b(pM->Domain[nl][nd].Grid);
-#endif
       }
     }
   }
@@ -1249,10 +804,6 @@ void Userwork_in_loop(MeshS *pM)
     ath_error("dt too small\n");
 
   }
-
-#ifdef PARTICLES
-  add_new_particles(pM);
-#endif
 
   return;
 }
@@ -1306,93 +857,11 @@ static void boost_frame(DomainS *pDomain, Real dvx)
     }
   }
 
-#ifdef EXPAND_DOMAIN
-  /*
-    Was something like:
-        x_shift += (vflow0 * pow(scalefac,
-        ed_exp[ed_exp_mode()].vx) - vflow) * pDomain->Grid->dt;
-    but if ed_exp[0].vx != ed_exp[1].vx then this doesn't work.
-  */
-  if(ed_exp[ed_exp_mode()].vx)
-    ath_error("Expansion in vx for different scale factors not implemented yet.");
-  else
-    x_shift += (vflow0 - vflow) * pDomain->Grid->dt;
-#else
   //  x_shift -= dvx * pDomain->Grid->dt;
   x_shift -= vflow * pDomain->Grid->dt;
-#endif // EXPAND_DOMAIN
-
   return;
 }
 #endif  /* FOLLOW_CLOUD */
-
-
-#ifdef EXPAND_DOMAIN
-static int ed_exp_mode()  {
-  return r0 + x_shift > rbreak;
-}
-
-static void expand_domain(DomainS *pDomain, Real scale) {
-  int i, j, k;
-  int is,ie,js,je,ks,ke;
-  Real E0, temp;
-  GridS *pGrid = pDomain->Grid;
-  const struct ed_exp_s *cexp = &(ed_exp[ed_exp_mode()]);
-
-#ifdef MHD
-  ath_error("Not thought about scaling magnetic fields yet...");
-#endif
-
-  if(fabs(scale - 1.) > 1e-2)
-    ath_error("Scaling at one timestep is too big (%g).", scale);
-
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
-
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        E0 = pGrid->U[k][j][i].E - 0.5 * (SQR(pGrid->U[k][j][i].M1) +\
-                                          SQR(pGrid->U[k][j][i].M2) +\
-                                          SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
-        pGrid->U[k][j][i].d *= pow(scale, cexp->rho);
-
-        pGrid->U[k][j][i].M1 *= pow(scale, cexp->rho + cexp->vx);
-        pGrid->U[k][j][i].M2 *= pow(scale, cexp->rho + cexp->vy);
-        pGrid->U[k][j][i].M3 *= pow(scale, cexp->rho + cexp->vz);
-
-        E0 = MAX(TINY_NUMBER, E0) * pow(scale, cexp->pressure);
-
-        // Enforce tfloor
-        temp = MAX(E0 * Gamma_1 / pGrid->U[k][j][i].d, MIN(tfloor, tfloor_cooling));
-        E0 = temp * pGrid->U[k][j][i].d / Gamma_1;
-
-        pGrid->U[k][j][i].E = E0 +                                      \
-          0.5 * (SQR(pGrid->U[k][j][i].M1) +                            \
-                 SQR(pGrid->U[k][j][i].M2) +                            \
-                 SQR(pGrid->U[k][j][i].M3)) / pGrid->U[k][j][i].d;
-
-	if((pGrid->U[k][j][i].E < 0) || isnan(pGrid->U[k][j][i].E))
-	  ath_error("[expand_domain] E %e %e %e %e %e %e %e %e\n",
-		    pGrid->U[k][j][i].E, pGrid->U[k][j][i].M1, pGrid->U[k][j][i].M2,
-		    pGrid->U[k][j][i].M3, pGrid->U[k][j][i].d, temp, E0, scale);
-
-        /*
-        if((i == is) && ( k == ks) && (j == js)) {
-          printf("dens: %g, scalefac: %g, calc: %g, boundary: %g\n",
-                 pGrid->U[k][j][i].d, scalefac, pow(scalefac, -3),
-                 pGrid->U[k][j][i - 1].d);
-        }
-        */
-      }
-    }
-  }
-
-  return;
-}
-#endif // EXPAND_DOMAIN
-
 
 #ifdef REPORT_NANS
 static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
@@ -1406,11 +875,6 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   Real KE, rho, press, temp;
   int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
   int npress=0,   nrho=0,   nv=0,   nfloor; /* floor count */
-#ifdef MHD
-  Real ME;
-  int nanmag=0;
-  int nmag=0;
-#endif  /* MHD */
   Real beta;
   Real scal[8];
 #ifdef MPI_PARALLEL
@@ -1440,20 +904,9 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
           (2.0 * rho);
 
         press = pGrid->U[k][j][i].E - KE;
-#ifdef MHD
-        ME = (SQR(pGrid->U[k][j][i].B1c) +
-              SQR(pGrid->U[k][j][i].B2c) +
-              SQR(pGrid->U[k][j][i].B3c)) * 0.5;
-        press -= ME;
-#endif  /* MHD */
-
         press *= Gamma_1;
         temp = press / rho;
-#ifdef MHD
-        beta = press / ME;
-#else
         beta = fabs(200.*betafloor);
-#endif  /* MHD */
 
         if (press != press) {
           nanpress++;
@@ -1499,37 +952,6 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
           if(fix)
             pGrid->U[k][j][i].M3 = 0.0;
         }
-
-#ifdef MHD
-        if (ME != ME) {
-          nanmag++;
-          /* TODO: apply a fix to B? */
-        } else if (beta < betafloor && betafloor > 0.0) {
-          nmag++;
-          if(V && nmag < NO) printf("bad mag %e R %e  %e %e %e  %d %d %d %e %e %e %e %e\n",beta, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta, ME);
-          if(fix){
-	    // Old fix --> via new T
-            rho  = MAX(rho, sqrt(betafloor * ME));
-            temp = betafloor * ME / rho;
-            temp = MAX(temp,tfloor);
-
-	    /*
-	    // New fix --> via new B 
-	    temp = press / rho; // Otherwise beta sometimes < 0
-	    beta = press / ME; 
-	    if(beta < 0)
-	      ath_error("[floor_beta]: beta < 0 (%g), rho = %g, temp = %g, press = %g, ME = %g\n", beta, rho, temp, press, ME);
-	    pGrid->U[k][j][i].B1c *= sqrt(beta / betafloor);
-	    pGrid->U[k][j][i].B2c *= sqrt(beta / betafloor);
-	    pGrid->U[k][j][i].B3c *= sqrt(beta / betafloor);
-	    ME *= beta / betafloor;
-	    */
-
-            if(V && nmag < NO) printf("bad magf %e R %e  %e %e %e  %d %d %d %e %e %e %e %e\n",beta, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta,ME);
-          }
-        }
-#endif  /* MHD */
-
         /* write values back to the grid */
         /* TODO: what about B??? */
         if(fix) {
@@ -1540,9 +962,6 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
             (2.0 * rho);
 
           pGrid->U[k][j][i].E = temp*rho/Gamma_1 + KE;
-#ifdef MHD
-          pGrid->U[k][j][i].E += ME;
-#endif  /* MHD */
         }
       }
     }
@@ -1553,15 +972,9 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   my_scal[0] = nanpress;
   my_scal[1] = nanrho;
   my_scal[2] = nanv;
-#ifdef MHD
-  my_scal[3] = nanmag;
-#endif  /* MHD */
   my_scal[4] = npress;
   my_scal[5] = nrho;
   my_scal[6] = nv;
-#ifdef MHD
-  my_scal[7] = nmag;
-#endif  /* MHD */
 
   ierr = MPI_Allreduce(&my_scal, &scal, 8, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
   if (ierr)
@@ -1570,53 +983,26 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   nanpress = scal[0];
   nanrho   = scal[1];
   nanv     = scal[2];
-#ifdef MHD
-  nanmag   = scal[3];
-#endif  /* MHD */
   npress   = scal[4];
   nrho     = scal[5];
   nv       = scal[6];
-#ifdef MHD
-  nmag     = scal[7];
-#endif  /* MHD */
 #endif  /* MPI_PARALLEL */
 
 
   /* sum up the # of bad cells and report */
   nnan = nanpress+nanrho+nanv;
-
-#ifdef MHD
-  nnan += nanmag;
-#endif  /* MHD */
-
   /* sum up the # of floored cells and report */
   nfloor = npress+nrho+nv;
-
-#ifdef MHD
-  nfloor += nmag;
-#endif  /* MHD */
-
   if(nfloor > 0) {
-#ifdef MHD
-    ath_pout(0, "[report_nans]: floored %d cells: %d P, %d d, %d v, %d beta.\n",
-      nfloor, npress, nrho, nv, nmag);
-#else
     ath_pout(0, "[report_nans]: floored %d cells: %d P, %d d, %d v.\n",
       nfloor, npress, nrho, nv);
-#endif  /* MHD */
     }
 
 
   //  if ((nnan > 0 || nfloor -nmag > 30) && fix == 0) {
     if (nnan > 0 ){// && fix == 0) {
-#ifdef MHD
-    ath_pout(0, "[report_nans]: found %d nan cells: %d P, %d d, %d v, %d B.\n",
-             nnan, nanpress, nanrho, nanv, nanmag);
-#else
     ath_pout(0, "[report_nans]: found %d nan cells: %d P, %d d, %d v.\n",
-             nnan, nanpress, nanrho, nanv);
-#endif  /* MHD */
-
+       nnan, nanpress, nanrho, nanv);
 
     nan_dump.n      = 100;
     nan_dump.dt     = HUGE_NUMBER;
@@ -2123,12 +1509,6 @@ static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
   int NO = 2;
   Real KE, rho, press, temp;
 
-#ifdef MHD
-  Real ME;
-  int nanmag=0;
-  int nmag=0;
-#endif  /* MHD */
-
   GridS *pGrid = pDomain->Grid;
   Real tcloud = Gamma_1 / drat;
   is = pGrid->is; ie = pGrid->ie;
@@ -2146,13 +1526,6 @@ static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
           (2.0 * rho);
 
         press = pGrid->U[k][j][i].E - KE;
-#ifdef MHD
-        ME = (SQR(pGrid->U[k][j][i].B1c) +
-              SQR(pGrid->U[k][j][i].B2c) +
-              SQR(pGrid->U[k][j][i].B3c)) * 0.5;
-        press -= ME;
-#endif  /* MHD */
-
         press *= Gamma_1;
         temp = press / rho;
 
@@ -2161,9 +1534,6 @@ static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
           temp = 1.1*tcloud;
 
           pGrid->U[k][j][i].E = temp*rho/Gamma_1 + KE;
-#ifdef MHD
-          pGrid->U[k][j][i].E += ME;
-#endif  /* MHD */
         }
       }
     }
@@ -2172,8 +1542,6 @@ static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
 }
 
 #endif /* INSTANTCOOL */
-
-
 
 /* Return the center-of-mass velocity of the cloud */
 /*   the scalar s obeys the same equation as density, so we weight
@@ -2268,7 +1636,7 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-#ifdef EXPAND_DOMAIN
+  #ifdef EXPAND_DOMAIN
   Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
 #else
   Real s = 1.0;
@@ -2332,14 +1700,6 @@ static Real hst_vflow(const GridS *pG, const int i, const int j, const int k)
 }
 #endif
 
-#ifdef EXPAND_DOMAIN
-static Real hst_scalefac(const GridS *pG, const int i, const int j, const int k)
-{
-  return scalefac;
-}
-#endif
-
-
 /* dye-weighted hst quantities */
 #if (NSCALARS > 0)
 static Real hst_c(const GridS *pG, const int i, const int j, const int k)
@@ -2395,23 +1755,6 @@ static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k)
   return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d));
 }
 
-#ifdef MHD
-static Real hst_cBx(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B1c);
-}
-
-static Real hst_cBy(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B2c);
-}
-
-static Real hst_cBz(const GridS *pG, const int i, const int j, const int k)
-{
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].B3c);
-}
-#endif  /* MHD */
-
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k)
 {
   Real dye = pG->U[k][j][i].s[0] / pG->U[k][j][i].d;
@@ -2451,12 +1794,6 @@ static void bc_ix1(GridS *pGrid)
   int ks = pGrid->ks, ke = pGrid->ke;
   int i,j,k;
   Real presswind = Gamma_1 + dp;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-  Real x1, x2, x3, r;
-  Real Bz = sqrt(2.0 * presswind / betaout_z);
-  Real By = sqrt(2.0 * presswind / betaout_y);
-#endif
 
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
@@ -2472,17 +1809,7 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is-i].M2 = 0.0;
         pGrid->U[k][j][is-i].M3 = 0.0;
         pGrid->U[k][j][is-i].E  = presswind / Gamma_1 + 0.5*SQR(vflow);
-#ifdef MHD
-        pGrid->U[k][j][is-i].B1c = 0.0;
-        pGrid->U[k][j][is-i].B2c = By;
-        pGrid->U[k][j][is-i].B3c = Bz; //bz;
-        if(i == 1)
-          pGrid->U[k][j][is-i].B1c = 0.5*pGrid->B1i[k][j][is];
 
-        pGrid->U[k][j][is-i].E  += 0.5*(SQR(pGrid->U[k][j][is-i].B1c)
-                                        +SQR(pGrid->U[k][j][is-i].B2c)
-                                        +SQR(pGrid->U[k][j][is-i].B3c));
-#endif
 	if((pGrid->U[k][j][is-i].E < 0) || isnan(pGrid->U[k][j][is-i].E))
 	  ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",
 		    pGrid->U[k][j][is-i].E, pGrid->U[k][j][is-i].M1, pGrid->U[k][j][is-i].M2,
@@ -2490,44 +1817,6 @@ static void bc_ix1(GridS *pGrid)
       }
     }
   }
-
-
-#ifdef MHD
-/* B1i is not set at i=is-nghost */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<nghost; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x1 -= 0.5 * pGrid->dx1;
-        r = sqrt(x1*x1+x2*x2);
-
-        pGrid->B1i[k][j][i] = 0.0;
-      }
-    }
-  }
-
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=0; i<nghost; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        x2 -= 0.5 * pGrid->dx2;
-        r = sqrt(x1*x1+x2*x2);
-
-        pGrid->B2i[k][j][i] = By;
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=0; i<nghost; i++) {
-        pGrid->B3i[k][j][i] = Bz;
-      }
-    }
-  }
-#endif /* MHD */
 
   return;
 }
@@ -2540,9 +1829,6 @@ static void bc_ox1(GridS *pGrid)
   int i,j,k;
   const int V=0;
   int NO=10;
-#ifdef MHD
-  int ju, ku; /* j-upper, k-upper */
-#endif
 
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
@@ -2562,35 +1848,6 @@ static void bc_ox1(GridS *pGrid)
       }
     }
   }
-
-#ifdef MHD
-/* i=ie+1 is not a boundary condition for the interface field B1i */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=2; i<=nghost; i++) {
-        pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][ie];
-      }
-    }
-  }
-
-  if (pGrid->Nx[1] > 1) ju=je+1; else ju=je;
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=ju; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][ie];
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][ie];
-      }
-    }
-  }
-#endif /* MHD */
 
   return;
 }
@@ -2722,156 +1979,3 @@ static Real RandomNormal2(Real mu, Real sigma)
 
   return (mu + y1 * sigma);
 }
-
-
-
-
-
-/*
-Below follow the functions if one introduces particles
- */
-#ifdef PARTICLES
-PropFun_t get_usr_par_prop(const char *name)
-{
-  return NULL;
-}
-
-void gasvshift(const Real x1, const Real x2, const Real x3,
-               Real *u1, Real *u2, Real *u3)
-{
-  return;
-}
-
-void Userforce_particle(Real3Vect *ft, const Real x1, const Real x2,
-                        const Real x3, const Real v1, const Real v2, const Real v3)
-{
-  return;
-}
-
-
-void place_particle(GrainS *p, Real pos[]) {
-  p->x1 = pos[0];
-  p->x2 = pos[1];
-  p->x3 = pos[2];
-
-  p->pos = 1; /*!< position: 0: ghost; 1: grid; >=10: cross out/in; */
-
-  if(SQR(p->x1) + SQR(p->x2) + SQR(p->x3) < r_cloud * r_cloud)
-    p->v1 = 0.0;
-  else
-    p->v1 = vflow;
-  p->v2 = 0.0;
-  p->v3 = 0.0;
-
-#ifdef MPI_PARALLEL
-  p->init_id = myID_Comm_world;
-#endif
-
-}
-
-/* Initialize particles
-
-Place `npart` particles which are `parnumproc` for each processor except
-proc 0 where it is `parnumproc` + `npart_cloud`
- */
-void init_particles(DomainS *pDomain) {
-  GridS *pGrid = pDomain->Grid;
-  int i, j, fail;
-  int n = 0;
-  GrainS *p;
-  int npart_cloud = (int)(par_geti("particle","parnumcloud"));
-  // Define how close to the cloud the `parnumcloud` particles should be
-  Real part_drcloud = par_getd_def("particle", "part_drcloud", 1.1);
-  Real pos[3];
-  int npart;
-  parnumproc = (int)(par_geti("particle","parnumproc"));
-
-  npart = parnumproc + npart_cloud;
-
-  if (npart +2 > pGrid->arrsize)
-    particle_realloc(pGrid, npart + 2);
-  tstop0[0] = 0.0;
-
-  for(i=0;i<npart;i++) {
-    fail = 0;
-    for(j = 0; j < 3; j++) {
-      if(i >= parnumproc)
-        // put inside or close to cloud
-        pos[j] =  randomreal2(-r_cloud * part_drcloud, r_cloud * part_drcloud); 
-      else
-        pos[j] =  randomreal2(pGrid->MinX[j], pGrid->MaxX[j]); // uniformly on grid
-
-      if((pos[j] > pGrid->MaxX[j]) || (pos[j] < pGrid->MinX[j]))
-        fail = 1;
-    }
-    if(fail)
-      continue;
-
-    p = &(pGrid->particle[n]);
-    if(i >= parnumproc) // cloud
-      p->my_id = 1000000 + n - parnumproc + 1 + npart_cloud * myID_Comm_world;
-    else
-      p->my_id = n + myID_Comm_world * parnumproc;
-
-    place_particle(p, pos);
-    n += 1;
-  }
-
-  pGrid->nparticle = n;
-  ath_pout(-1, "[init_particles] Initialized %d particles on processor %d (%g to %g).\n",
-           pGrid->nparticle, myID_Comm_world, pGrid->MinX[0], pGrid->MaxX[0]);
-}
-
-
-
-/* Place new particles upstream */
-void add_new_particles(MeshS *pM) {
-  GridS *pGrid = pM->Domain[0][0].Grid;
-  int i,j;
-  GrainS *p;
-  Real minX = pM->RootMinX[0];
-  static long int cur_pid = 0;
-  int id_offset = parnumproc * (myID_Comm_world + 4096) + 10000; // TODO: FIXME better
-  Real pos[3];
-
-  if(minX != pGrid->MinX[0])
-    return; // don't feed new particles if not on upstream boundary
-
-  // Put some new particles in grid
-  for(i=pGrid->nparticle; i<parnumproc;i++) {
-    pos[0] = minX;
-    for(j = 1; j < 3; j++)
-      pos[j] = randomreal2(pGrid->MinX[j], pGrid->MaxX[j]);
-    p = &(pGrid->particle[i]);
-    place_particle(p, pos);
-
-    pGrid->nparticle++;
-    p->my_id = id_offset + cur_pid; 
-    cur_pid++;
-
-    ath_pout(-1, "[add_new_particle] Added particle %ld (%.2g, %.2g) on processor %d\n",
-             p->my_id, p->x2, p->x3, myID_Comm_world);
-  }
-
-}
-
-#endif /* PARTICLES */
-
-
-#ifdef THERMAL_CONDUCTION
-//         kappa = (*KappaFun_i)(pG->U[k][j][i].d, Temp[k][j][i], x1, x2, x3);
-
-Real KappaFun_i_constant(const Real d, const Real T,
-                         const Real x1, const Real x2, const Real x3) {
-  return kappa_iso;
-}
-
-
-Real KappaFun_a_constant(const Real d, const Real T,
-                         const Real x1, const Real x2, const Real x3) {
-  return kappa_aniso;
-}
-
-
-#endif /* THERMAL_CONDUCTION */
-
