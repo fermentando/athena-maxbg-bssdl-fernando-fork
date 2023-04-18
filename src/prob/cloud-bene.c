@@ -357,204 +357,202 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-        if (r < r_cloud)
-        {
-          vx = -v_cloud;
-          vy = 0.0;
-
-          rho *= drat;
-#if (NSCALARS > 0)
-          dye = drat; // 1.0;
-#endif
-        }
-        if (dr > 0.0)
-        {
-          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
-#ifndef SHOCK
-          vx = vflow * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
-#endif
-          vx += v_cloud;
-          vx += -(x2 / r_cloud) * v_rot;
-          vy = (x1 / r_cloud) * v_rot;
-#if (NSCALARS > 0)
-          // This line means that the dye does not follow the density in the boundary (dr) region
           if (r < r_cloud)
           {
-            dye = rho;
-          }
+            vx = v_cloud;
+            vy = 0.0;
+            rho *= drat;
+            
+#if (NSCALARS > 0)
+            dye = drat; // 1.0;
 #endif
-        }
+          }
+          if (dr > 0.0)
+          {
+            rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
+#ifndef SHOCK
+            vx = vflow * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
+#endif
+            vx += v_cloud;
+            vx += -(x2 / r_cloud) * v_rot;
+            vy = (x1 / r_cloud) * v_rot;
+#if (NSCALARS > 0)
+            // This line means that the dye does not follow the density in the boundary (dr) region
+            if (r < r_cloud)
+            {
+              dye = rho;
+            }
+#endif
+          }
 
-      } //             end: do not read grid from file
+        /* write values to the grid */
+        pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].M1 = rho * vx;
+        pGrid->U[k][j][i].M2 = rho * vy;
+        pGrid->U[k][j][i].M3 = rho * vz;
 
-      /* write values to the grid */
-      pGrid->U[k][j][i].d = rho;
-      pGrid->U[k][j][i].M1 = rho * vx;
-      pGrid->U[k][j][i].M2 = rho * vy;
-      pGrid->U[k][j][i].M3 = rho * vz;
-
-      // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
+        // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-      pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1;
-      pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
+        pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1;
+        pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
 #endif /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
-      pGrid->U[k][j][i].s[0] = dye;
+        pGrid->U[k][j][i].s[0] = dye;
 #endif
 
 #ifdef ENERGY_COOLING
-      pGrid->U[k][j][i].Erad = 0;
+        pGrid->U[k][j][i].Erad = 0;
 #endif
-    }
-  }
-} /* end grid loops */
-
-// Some info printed
-ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
-         sqrt(drat) * r_cloud / vflow,
-#ifdef ENERGY_COOLING
-         tcool(drat, (Gamma_1 + dp) / drat),
-#else
-         -1, -1
-#endif
-         (Gamma_1 + dp) / drat,
-         tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
-         tcool(1., drat *(Gamma_1 + dp)));
-
-// close file if ICs are read from file
-if (fp_rho != NULL)
-{
-  fclose(fp_rho);
-  free(cloud_dat_rho);
-  if (nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
-    ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
-              ndim_file[0] * ndim_file[1] * ndim_file[2]);
-}
-
-/* MHD part --> generate tangled magnetic field in cloud */
-if (tangled)
-{
-  A = (Real3Vect ***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
-
-  for (k = 0; k < nx3; k++)
-  {
-    for (j = 0; j < nx2; j++)
-    {
-      for (i = 0; i < nx1; i++)
-      {
-        A[k][j][i].x3 = A[k][j][i].x2 = A[k][j][i].x1 = 0.0;
       }
     }
+  } /* end grid loops */
+
+  // Some info printed
+  ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
+           sqrt(drat) * r_cloud / vflow,
+#ifdef ENERGY_COOLING
+           tcool(drat, (Gamma_1 + dp) / drat),
+#else
+           -1, -1
+#endif
+           (Gamma_1 + dp) / drat,
+           tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
+           tcool(1., drat *(Gamma_1 + dp)));
+
+  // close file if ICs are read from file
+  if (fp_rho != NULL)
+  {
+    fclose(fp_rho);
+    free(cloud_dat_rho);
+    if (nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
+      ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
+                ndim_file[0] * ndim_file[1] * ndim_file[2]);
   }
 
-  nterms = par_getd_def("problem", "nterms", 10);
-  alpha = par_getd_def("problem", "alpha", 50.0);
-  for (i = 0; i < nterms; i++)
+  /* MHD part --> generate tangled magnetic field in cloud */
+  if (tangled)
   {
-    if (myID_Comm_world == 0)
-    {
-      phi = randomreal2(0.0, 2.0 * PI);
-      theta = acos(2.0 * randomreal2(0.0, 1.0) - 1.0);
-      beta = randomreal2(0.0, 2.0 * PI);
+    A = (Real3Vect ***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
 
-      amp = RandomNormal2(1.0, 0.25);
-    }
-    else
+    for (k = 0; k < nx3; k++)
     {
-      theta = phi = beta = amp = alpha = 0.0;
+      for (j = 0; j < nx2; j++)
+      {
+        for (i = 0; i < nx1; i++)
+        {
+          A[k][j][i].x3 = A[k][j][i].x2 = A[k][j][i].x1 = 0.0;
+        }
+      }
     }
+
+    nterms = par_getd_def("problem", "nterms", 10);
+    alpha = par_getd_def("problem", "alpha", 50.0);
+    for (i = 0; i < nterms; i++)
+    {
+      if (myID_Comm_world == 0)
+      {
+        phi = randomreal2(0.0, 2.0 * PI);
+        theta = acos(2.0 * randomreal2(0.0, 1.0) - 1.0);
+        beta = randomreal2(0.0, 2.0 * PI);
+
+        amp = RandomNormal2(1.0, 0.25);
+      }
+      else
+      {
+        theta = phi = beta = amp = alpha = 0.0;
+      }
 
 #ifdef MPI_PARALLEL
-    my_scal[0] = theta;
-    my_scal[1] = phi;
-    my_scal[2] = beta;
-    my_scal[3] = amp;
-    my_scal[4] = alpha;
+      my_scal[0] = theta;
+      my_scal[1] = phi;
+      my_scal[2] = beta;
+      my_scal[3] = amp;
+      my_scal[4] = alpha;
 
-    ierr = MPI_Allreduce(&my_scal, &scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-    if (ierr)
-      ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+      ierr = MPI_Allreduce(&my_scal, &scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+      if (ierr)
+        ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
 
-    theta = scal[0];
-    phi = scal[1];
-    beta = scal[2];
-    amp = scal[3];
-    alpha = scal[4];
+      theta = scal[0];
+      phi = scal[1];
+      beta = scal[2];
+      amp = scal[3];
+      alpha = scal[4];
 #endif
 
-    add_term(A, pGrid, theta, phi, alpha, beta, amp);
-  } /* end loop over nterms */
+      add_term(A, pGrid, theta, phi, alpha, beta, amp);
+    } /* end loop over nterms */
 
-  Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
+    Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
 
-  for (k = 0; k < nx3; k++)
-  {
-    for (j = 0; j < nx2; j++)
+    for (k = 0; k < nx3; k++)
     {
-      for (i = 0; i < nx1; i++)
+      for (j = 0; j < nx2; j++)
       {
-        A[k][j][i].x1 *= Bin / sqrt(nterms);
-        A[k][j][i].x2 *= Bin / sqrt(nterms);
-        A[k][j][i].x3 *= Bin / sqrt(nterms);
+        for (i = 0; i < nx1; i++)
+        {
+          A[k][j][i].x1 *= Bin / sqrt(nterms);
+          A[k][j][i].x2 *= Bin / sqrt(nterms);
+          A[k][j][i].x3 *= Bin / sqrt(nterms);
 
-        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-        r = sqrt(x1 * x1 + x2 * x2 + x3 * x3);
-        if (r > r_cloud)
-          A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
+          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+          r = sqrt(x1 * x1 + x2 * x2 + x3 * x3);
+          if (r > r_cloud)
+            A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
+        }
+      }
+    }
+
+  } /*end of if(tangled) */
+
+  /* take curl here */
+
+  if (tangled)
+  {
+    free_3d_array((void ***)A);
+  }
+  /* cell-centered magnetic field */
+  /*   derive this from interface field to be internally consistent
+       with athena */
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
       }
     }
   }
 
-} /*end of if(tangled) */
+  if (pDomain->Disp[0] == 0)
+    bvals_mhd_fun(pDomain, left_x1, bc_ix1);
+  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+    bvals_mhd_fun(pDomain, right_x1, bc_ox1);
 
-/* take curl here */
-
-if (tangled)
-{
-  free_3d_array((void ***)A);
-}
-/* cell-centered magnetic field */
-/*   derive this from interface field to be internally consistent
-     with athena */
-for (k = ks; k <= ke; k++)
-{
-  for (j = js; j <= je; j++)
+  /* seed a perturbation */
+  for (k = ks; k <= ke; k++)
   {
-    for (i = is; i <= ie; i++)
+    for (j = js; j <= je; j++)
     {
+      for (i = is; i <= ie; i++)
+      {
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+        fact = -1.0;
+        while (fabs(fact) > 0.03)
+          fact = (RandomNormal(0.0, 0.01));
+        if (fabs(fact) < .03)
+          pGrid->U[k][j][i].d *= (1.0 + fact);
+      }
     }
   }
-}
-
-if (pDomain->Disp[0] == 0)
-  bvals_mhd_fun(pDomain, left_x1, bc_ix1);
-if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
-  bvals_mhd_fun(pDomain, right_x1, bc_ox1);
-
-/* seed a perturbation */
-for (k = ks; k <= ke; k++)
-{
-  for (j = js; j <= je; j++)
-  {
-    for (i = is; i <= ie; i++)
-    {
-      cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-      fact = -1.0;
-      while (fabs(fact) > 0.03)
-        fact = (RandomNormal(0.0, 0.01));
-      if (fabs(fact) < .03)
-        pGrid->U[k][j][i].d *= (1.0 + fact);
-    }
-  }
-}
 
 #if ENERGY_HEATING == 2
-ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
-         heating_rate, sdLambda(drat, (Gamma_1 + dp) / drat));
+  ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
+           heating_rate, sdLambda(drat, (Gamma_1 + dp) / drat));
 #endif
 
-return;
+  return;
 }
 
 /*==============================================================================
