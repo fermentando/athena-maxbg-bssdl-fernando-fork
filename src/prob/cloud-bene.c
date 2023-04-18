@@ -170,8 +170,8 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke;
   int il,iu,jl,ju,kl,ku;
   Real x1,x2,x3, r;
-  Real rho, vx, vy, vz, v_turb, v_rot;
-  Real fact, l_cloud;
+  Real rho, vx, vy, vz;
+  Real fact;
 
   int iseed;
   Real3Vect ***A;
@@ -185,7 +185,7 @@ void problem(DomainS *pDomain)
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
   Real bscale, ascale;
-  int tangled = 0;
+  int tangledloud = 0;
 #if (NSCALARS > 0)
   Real dye;
 #endif
@@ -200,12 +200,27 @@ void problem(DomainS *pDomain)
 #endif
   acc = par_getd_def("problem","acceleration",0.0);    // accelerated wind
 
+<<<<<<< HEAD
   v_turb = par_getd_def("problem", "v_turb", 0.0);     // turbulent velocity in cloud (untested!)
   v_rot  = par_getd_def("problem", "v_rot",  0.0);     // rotating cloud (untested!)
+=======
+#ifdef EXPAND_DOMAIN
+  scalefac = 1.0;
+  r0     = par_getd("problem", "r0");
+  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER); // default: mode 0
+#endif
+
+#ifdef MHD
+  tangled = par_getd_def("problem","tangled",1);
+  betain = par_getd("problem", "betain");
+  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
+  betaout_z = par_getd("problem", "betaout_z");
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+#endif
+>>>>>>> 806327ecd82578b681ea707efc32a212ae3c166d
 
   r_cloud = par_getd_def("problem", "r_cloud", 0.25);  // size of cloud
   v_cloud = par_getd_def("problem", "v_cloud", 0.0);   // extra cloud velocity
-  l_cloud = par_getd_def("problem", "l_cloud", 0.0);   // extra length of cloud along stream
   dr = par_getd_def("problem", "dr", 0.0);
 
   tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);  // cooling floor.
@@ -338,9 +353,11 @@ void problem(DomainS *pDomain)
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
+        // Convert (i,j,k) to real space (x1,x2,x3)
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        //r = sqrt(x1*x1+x2*x2+x3*x3);
-        r = sqrt(pow(MIN(MAX(x1 - l_cloud, 0), x1), 2) + x2*x2 + x3*x3);
+
+        // Compute radius in cloud
+        r = sqrt(x1*x1+x2*x2+x3*x3); // spherical
 
 
     // Static inflow
@@ -354,35 +371,11 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
+        if (r < r_cloud) {
+          vx   = -v_cloud;
+          vy   =  0.0;
 
-        /* Initialize cloud */
-        if(fp_rho != NULL) { // read grid from file
-          ii = (int)(x1 / pGrid->dx1) + ndim_file[0] / 2; //i - ((Nx - ndim_file) / 2);
-          jj = (int)(x2 / pGrid->dx2) + ndim_file[1] / 2; //j - ((Ny - ndim_file) / 2);
-          kk = (int)(x3 / pGrid->dx3) + ndim_file[2] / 2; //k - ((Nz - ndim_file) / 2);
-          //ii = i - is - ndim_file[0] / 2; //i - ((Nx - ndim_file) / 2);
-          //jj = j - is - ndim_file[1] / 2; //i - ((Nx - ndim_file) / 2);
-          //kk = k - is - ndim_file[2] / 2; //i - ((Nx - ndim_file) / 2);
-          if((ii > 0) && (ii < ndim_file[0]) &&
-             (jj > 0) && (jj < ndim_file[1]) &&
-             (kk > 0) && (kk < ndim_file[2])) {
-            printf("%d %d %d\n", ii, jj, kk);
-            rho = cloud_dat_rho[kk * ndim_file[2] * ndim_file[1] + jj * ndim_file[1] + ii];
-            if(rho < 0) ath_error("Found rho < 0 in grid file!");
-            rho = rho * (drat - 1.0);
-#if (NSCALARS > 0)
-            dye = rho;
-#endif
-            rho += 1.0; // also add wind density --> @Cameron: you need to change this!
-            vx = 0.0; // Not necessarily valid if vflow > 0!
-            nreadwrite++;
-          }
-        } else { //      begin: do not read grid from file
-          if (r < r_cloud) {
-            vx   = -(x2/r_cloud) * v_rot + v_cloud;
-            vy   =  (x1/r_cloud) * v_rot;
-
-            rho  *= drat;
+          rho  *= drat;
 #if (NSCALARS > 0)
             dye = drat ; //1.0;
 #endif
@@ -402,8 +395,20 @@ void problem(DomainS *pDomain)
             }
 #endif
           }
+<<<<<<< HEAD
 
         } //             end: do not read grid from file
+=======
+#ifdef FLOW_PROFILE
+          // with flow profile we have to print inside the cloud, thus cannot just use the root proc
+          if((r < r_cloud) && (iprint == 0)) {
+            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
+                     sqrt(drat) * r_cloud / vx,
+                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
+            iprint = 1;
+          }
+#endif
+>>>>>>> 806327ecd82578b681ea707efc32a212ae3c166d
 
         /* write values to the grid */
         pGrid->U[k][j][i].d = rho;
@@ -411,13 +416,6 @@ void problem(DomainS *pDomain)
         pGrid->U[k][j][i].M2 = rho * vy;
         pGrid->U[k][j][i].M3 = rho * vz;
 
-        /* if (r < r_cloud && v_turb > 0.0) {
-          pGrid->U[k][j][i].M1 += rho * RandomNormal(0.0, v_turb);
-          pGrid->U[k][j][i].M2 += rho * RandomNormal(0.0, v_turb);
-          if (pGrid->Nx[2] > 1)
-            pGrid->U[k][j][i].M3 += rho * RandomNormal(0.0, v_turb);
-        }
-        */
 
         // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
