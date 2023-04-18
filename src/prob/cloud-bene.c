@@ -11,13 +11,13 @@
 #include "prob/math_functions.h"
 
 /* ----------- Define options here --------- */
-#define FOLLOW_CLOUD         // Moving reference frame
-#define REPORT_NANS          // Verbose
-#define ENERGY_COOLING       // Cooling
-//#define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-//#define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
-//#define INSTANTCOOL        //Test cooling 
-#define ENERGY_HEATING 0    // 0 = no heating, 1 = heat what cooled, 2 = constant heating REMOVED ENERGY_HEATING 2
+#define FOLLOW_CLOUD   // Moving reference frame
+#define REPORT_NANS    // Verbose
+#define ENERGY_COOLING // Cooling
+// #define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
+// #define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
+// #define INSTANTCOOL        //Test cooling
+#define ENERGY_HEATING 0 // 0 = no heating, 1 = heat what cooled, 2 = constant heating REMOVED ENERGY_HEATING 2
 // #define SHOCK // shock instead of constant wind
 /* ----------------------------------------- */
 
@@ -28,12 +28,11 @@
 #define MPI_RL MPI_FLOAT
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
- //particles raus
- // MHD raus
+       // particles raus
+//  MHD raus
 
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
-
 
 static void check_div_b(GridS *pGrid);
 
@@ -58,7 +57,6 @@ static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k);
 
 static Real hst_Erad(const GridS *pG, const int i, const int j, const int k);
 
-
 /* dye-weighted hst quantities */
 #if (NSCALARS > 0)
 static Real hst_c(const GridS *pG, const int i, const int j, const int k);
@@ -81,22 +79,22 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k);
 #endif
 
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k);
-#endif  /* NSCALARS */
+#endif /* NSCALARS */
 
 #ifdef REPORT_NANS
 static int report_nans(MeshS *pM, DomainS *pDomain, int fix);
 static OutputS nan_dump;
 static int nan_dump_count;
-#endif  /* REPORT_NANS */
+#endif /* REPORT_NANS */
 
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
 /* Choose cooling curve here */
 #include "prob/cooling_data/SD93_Z1.h"
-//#include "prob/cooling_data/denstest.h"
-//#include "prob/cooling_data/WSS09_z0_Z1.h"
-//#include "prob/cooling_data/powerlaw/alpha1.5.h"
+// #include "prob/cooling_data/denstest.h"
+// #include "prob/cooling_data/WSS09_z0_Z1.h"
+// #include "prob/cooling_data/powerlaw/alpha1.5.h"
 
 static Real Yk[nfit_cool_d][nfit_cool_T];
 /* -- end piecewise power-law fit */
@@ -117,13 +115,13 @@ static void integrate_cooling(GridS *pG);
 #if ENERGY_HEATING == 1
 static void radiate_energy(MeshS *pM);
 #endif
-#endif  /* ENERGY_COOLING */
+#endif /* ENERGY_COOLING */
 
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
-#endif  /* INSTANTCOOL */
+#endif /* INSTANTCOOL */
 
 #ifdef FOLLOW_CLOUD
 static Real cloud_mass_weighted_velocity(MeshS *pM);
@@ -136,7 +134,7 @@ static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 
 static Real scalefac = 1.0;
 
-static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc, v_cloud;
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z, dr, dp, tnotcool, r_cloud, acc, v_cloud;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
@@ -148,16 +146,15 @@ static Real heating_rate;
 static Real dtmin;
 static Real pro(Real r, Real rcloud)
 {
-  return (r/rcloud - log(cosh(r/rcloud))) / log(2);
+  return (r / rcloud - log(cosh(r / rcloud))) / log(2);
 }
 
-
-static Real get_pressure(ConsS *u) {
+static Real get_pressure(ConsS *u)
+{
   Real E0 = 0.5 * (SQR(u->M1) + SQR(u->M2) + SQR(u->M3)) / u->d;
 
   return (u->E - E0) * Gamma_1;
 }
-
 
 /*==============================================================================
  * INITIAL CONDITION:
@@ -166,16 +163,16 @@ static Real get_pressure(ConsS *u) {
 void problem(DomainS *pDomain)
 {
   GridS *pGrid = pDomain->Grid;
-  int i=0,j=0,k=0;
-  int is,ie,js,je,ks,ke;
-  int il,iu,jl,ju,kl,ku;
-  Real x1,x2,x3, r;
+  int i = 0, j = 0, k = 0;
+  int is, ie, js, je, ks, ke;
+  int il, iu, jl, ju, kl, ku;
+  Real x1, x2, x3, r;
   Real rho, vx, vy, vz;
   Real fact;
 
   int iseed;
   Real3Vect ***A;
-  int nterms,nx1,nx2,nx3,ierr;
+  int nterms, nx1, nx2, nx3, ierr;
   Real theta, phi, alpha, beta, amp;
   Real scal[5];
   Real my_scal[5];
@@ -190,62 +187,41 @@ void problem(DomainS *pDomain)
   Real dye;
 #endif
 
-  drat   = par_getd("problem", "drat");                // rho_cold / rho_hot
-  vflow  = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
+  drat = par_getd("problem", "drat");   // rho_cold / rho_hot
+  vflow = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
   vflow0 = vflow;
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
-  //vflow = 0.1 * vflow;
+  // vflow = 0.1 * vflow;
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
-  acc = par_getd_def("problem","acceleration",0.0);    // accelerated wind
-
-<<<<<<< HEAD
-  v_turb = par_getd_def("problem", "v_turb", 0.0);     // turbulent velocity in cloud (untested!)
-  v_rot  = par_getd_def("problem", "v_rot",  0.0);     // rotating cloud (untested!)
-=======
-#ifdef EXPAND_DOMAIN
-  scalefac = 1.0;
-  r0     = par_getd("problem", "r0");
-  rbreak = par_getd_def("problem", "rbreak", HUGE_NUMBER); // default: mode 0
-#endif
-
-#ifdef MHD
-  tangled = par_getd_def("problem","tangled",1);
-  betain = par_getd("problem", "betain");
-  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
-  betaout_z = par_getd("problem", "betaout_z");
-  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
-#endif
->>>>>>> 806327ecd82578b681ea707efc32a212ae3c166d
-
-  r_cloud = par_getd_def("problem", "r_cloud", 0.25);  // size of cloud
-  v_cloud = par_getd_def("problem", "v_cloud", 0.0);   // extra cloud velocity
+  acc = par_getd_def("problem", "acceleration", 0.0); // accelerated wind
+  r_cloud = par_getd_def("problem", "r_cloud", 0.25); // size of cloud
+  v_cloud = par_getd_def("problem", "v_cloud", 0.0);  // extra cloud velocity
   dr = par_getd_def("problem", "dr", 0.0);
 
-  tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);  // cooling floor.
-                 // note that there's another tfloor in the cooling function
+  tfloor = par_getd_def("problem", "tfloor", 1.e-2 / drat); // cooling floor.
+                                                            // note that there's another tfloor in the cooling function
 
-  tceil = par_getd_def("problem", "tceil", 100.);          // no T above this
+  tceil = par_getd_def("problem", "tceil", 100.); // no T above this
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
-  dens_conv = par_getd_def("problem", "dens_conv", 1.0);   // for density
-                                                           // dependent cooling
+  dens_conv = par_getd_def("problem", "dens_conv", 1.0); // for density
+                                                         // dependent cooling
 
-  dp = par_getd_def("problem", "dp", 0.0);                 // variation of overall pressure
-  tnotcool = par_getd_def("problem", "tnotcool", -1.0);    // no cooling above this
+  dp = par_getd_def("problem", "dp", 0.0);              // variation of overall pressure
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0); // no cooling above this
 
   // temp floor in cooling routine. effectively max(tfloor,tfloor_cooling) is
   // the temperture floor
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
-#if ENERGY_HEATING == 2 // fixed heating
-  heating_rate = par_getd("problem","heating");   // fixed heating rate
-#endif /* ENERGY_HEATING == 2 */
+#if ENERGY_HEATING == 2                          // fixed heating
+  heating_rate = par_getd("problem", "heating"); // fixed heating rate
+#endif                                           /* ENERGY_HEATING == 2 */
 
- 
 #ifdef VISCOSITY
-  nu   = par_getd("problem","nu");
+  nu = par_getd("problem", "nu");
   NuFun_i = NULL;
   NuFun_a = nu_fun;
 #endif
@@ -272,24 +248,24 @@ void problem(DomainS *pDomain)
 #endif
 
   /* Add additional output in hst file */
-  dump_history_enroll(hst_m13, "m13");    // mass(rho > rho_cl / 3)
-  dump_history_enroll(hst_m110, "m110");  // mass(rho > rho_cl / 10)
-  dump_history_enroll(hst_mT2, "mT2");    // mass(T < T_cl /2)
-  dump_history_enroll(hst_Mx13, "Mx13");  // Momentum(rho > rho_cl / 3)
+  dump_history_enroll(hst_m13, "m13");   // mass(rho > rho_cl / 3)
+  dump_history_enroll(hst_m110, "m110"); // mass(rho > rho_cl / 10)
+  dump_history_enroll(hst_mT2, "mT2");   // mass(T < T_cl /2)
+  dump_history_enroll(hst_Mx13, "Mx13"); // Momentum(rho > rho_cl / 3)
 
-  dump_history_enroll(hst_Erad, "Erad");  // Total radiated energy
+  dump_history_enroll(hst_Erad, "Erad"); // Total radiated energy
 
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift"); // Total shift
-  dump_history_enroll_alt(hst_vflow,  "v_flow");  // Current inflow velocity
+  dump_history_enroll_alt(hst_vflow, "v_flow");   // Current inflow velocity
 #endif
 
 #if (NSCALARS > 0)
   // Various concentrations
-  dump_history_enroll(hst_c,    "<c>");
+  dump_history_enroll(hst_c, "<c>");
   dump_history_enroll(hst_c_sq, "<c^2>");
 
-  dump_history_enroll(hst_cE,  "<c * E>");
+  dump_history_enroll(hst_cE, "<c * E>");
   dump_history_enroll(hst_cx1, "<c * x1>");
 
   dump_history_enroll(hst_cvx, "<c * Vx>");
@@ -314,12 +290,15 @@ void problem(DomainS *pDomain)
   /* Initialize grid loading */
   int Nx, Ny, Nz, ndim_file[3];
   int ii, jj, kk;
-  Nx = pDomain->Nx[0]; Ny = pDomain->Nx[1]; Nz = pDomain->Nx[2];
-  char* fn_rho = par_gets_def("problem", "load_grid_rho", "");
+  Nx = pDomain->Nx[0];
+  Ny = pDomain->Nx[1];
+  Nz = pDomain->Nx[2];
+  char *fn_rho = par_gets_def("problem", "load_grid_rho", "");
   Real *cloud_dat_rho;
-  FILE* fp_rho = NULL;
+  FILE *fp_rho = NULL;
   int nreadwrite = 0;
-  if((char)fn_rho[0]) {
+  if ((char)fn_rho[0])
+  {
 #ifdef FLOW_PROFILE
     ath_error("FLOW_PROFILE and grid loading not implemented yet.");
 #endif
@@ -328,246 +307,254 @@ void problem(DomainS *pDomain)
     ndim_file[2] = par_geti("problem", "load_grid_ndim_x3");
     ath_pout(0, "Loading grid `%s` with (%d,%d,%d) cells (grid cells: [%d,%d,%d])\n",
              fn_rho, ndim_file[0], ndim_file[1], ndim_file[2], Nx, Ny, Nz);
-    if((ndim_file[0] > Nx) || (ndim_file[1] > Ny) || (ndim_file[2] > Nz))
+    if ((ndim_file[0] > Nx) || (ndim_file[1] > Ny) || (ndim_file[2] > Nz))
       ath_error("[read_grid]: Grid in file larger than ATHENA grid.");
     fp_rho = fopen(fn_rho, "r");
-    if(fp_rho == NULL) ath_error("[read_grid] Problem loading `%s`.", fn_rho);
-    cloud_dat_rho = (Real*)malloc(sizeof(Real) * ndim_file[2] * ndim_file[1] * ndim_file[0]);
-    if(cloud_dat_rho == NULL) ath_error("[read_grid] Error allocating memory for rho.");
+    if (fp_rho == NULL)
+      ath_error("[read_grid] Problem loading `%s`.", fn_rho);
+    cloud_dat_rho = (Real *)malloc(sizeof(Real) * ndim_file[2] * ndim_file[1] * ndim_file[0]);
+    if (cloud_dat_rho == NULL)
+      ath_error("[read_grid] Error allocating memory for rho.");
     fread(cloud_dat_rho, sizeof(Real), ndim_file[0] * ndim_file[1] * ndim_file[2], fp_rho);
     fread(&rho, sizeof(Real), 1, fp_rho);
-    if(!feof(fp_rho)) ath_error("[read_grid] Not eof for rho.");
-  }   /* end grid loading */
+    if (!feof(fp_rho))
+      ath_error("[read_grid] Not eof for rho.");
+  } /* end grid loading */
 
-
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
-  nx1 = (ie-is)+1 + 2*nghost;
-  nx2 = (je-js)+1 + 2*nghost;
-  nx3 = (ke-ks)+1 + 2*nghost;
+  is = pGrid->is;
+  ie = pGrid->ie;
+  js = pGrid->js;
+  je = pGrid->je;
+  ks = pGrid->ks;
+  ke = pGrid->ke;
+  nx1 = (ie - is) + 1 + 2 * nghost;
+  nx2 = (je - js) + 1 + 2 * nghost;
+  nx3 = (ke - ks) + 1 + 2 * nghost;
   int iprint = 0;
   vx = vy = vz = 0.0;
 
   /* Begin cell loop */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
         // Convert (i,j,k) to real space (x1,x2,x3)
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
 
         // Compute radius in cloud
-        r = sqrt(x1*x1+x2*x2+x3*x3); // spherical
+        r = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
 
-
-    // Static inflow
-    rho  = 1.0;
-    // Fix pressure so that temperature is normed to what it was with drat=1e3
-    // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
+        // Static inflow
+        rho = 1.0;
+        // Fix pressure so that temperature is normed to what it was with drat=1e3
+        // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
 #ifndef SHOCK
-    vx   = vflow;
+        vx = vflow;
 #endif
 
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-        if (r < r_cloud) {
-          vx   = -v_cloud;
-          vy   =  0.0;
+        if (r < r_cloud)
+        {
+          vx = -v_cloud;
+          vy = 0.0;
 
-          rho  *= drat;
+          rho *= drat;
 #if (NSCALARS > 0)
-            dye = drat ; //1.0;
+          dye = drat; // 1.0;
 #endif
-          }
-          if (dr > 0.0){
-            rho = (1.0 + drat*0.5*(1.0+tanh((r_cloud-r)/(dr*r_cloud))));
+        }
+        if (dr > 0.0)
+        {
+          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
 #ifndef SHOCK
-            vx = vflow*0.5*(1.0+tanh((-(1.0+dr)*r_cloud+r)/(dr*r_cloud)))/rho;
+          vx = vflow * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
 #endif
-            vx   += v_cloud;
-            vx   += -(x2/r_cloud) * v_rot;
-            vy   =  (x1/r_cloud) * v_rot;
+          vx += v_cloud;
+          vx += -(x2 / r_cloud) * v_rot;
+          vy = (x1 / r_cloud) * v_rot;
 #if (NSCALARS > 0)
-            // This line means that the dye does not follow the density in the boundary (dr) region
-            if(r < r_cloud){
-              dye = rho;
-            }
-#endif
-          }
-<<<<<<< HEAD
-
-        } //             end: do not read grid from file
-=======
-#ifdef FLOW_PROFILE
-          // with flow profile we have to print inside the cloud, thus cannot just use the root proc
-          if((r < r_cloud) && (iprint == 0)) {
-            ath_pout(-1, "[init_problem] t_cc = %g\tt_cool,cl = %g\n",
-                     sqrt(drat) * r_cloud / vx,
-                     tcool(rho, flow_profile_pressure(x1, x2, x3) / (rho * drat)));
-            iprint = 1;
+          // This line means that the dye does not follow the density in the boundary (dr) region
+          if (r < r_cloud)
+          {
+            dye = rho;
           }
 #endif
->>>>>>> 806327ecd82578b681ea707efc32a212ae3c166d
+        }
 
-        /* write values to the grid */
-        pGrid->U[k][j][i].d = rho;
-        pGrid->U[k][j][i].M1 = rho * vx;
-        pGrid->U[k][j][i].M2 = rho * vy;
-        pGrid->U[k][j][i].M3 = rho * vz;
+      } //             end: do not read grid from file
 
+      /* write values to the grid */
+      pGrid->U[k][j][i].d = rho;
+      pGrid->U[k][j][i].M1 = rho * vx;
+      pGrid->U[k][j][i].M2 = rho * vy;
+      pGrid->U[k][j][i].M3 = rho * vz;
 
-        // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
+      // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1 ;
-        pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx)+SQR(vy)+SQR(vz));
-#endif  /* not ISOTHERMAL */
+      pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1;
+      pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
+#endif /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
-        pGrid->U[k][j][i].s[0] = dye;
+      pGrid->U[k][j][i].s[0] = dye;
 #endif
 
 #ifdef ENERGY_COOLING
-        pGrid->U[k][j][i].Erad = 0;
+      pGrid->U[k][j][i].Erad = 0;
 #endif
+    }
+  }
+} /* end grid loops */
 
+// Some info printed
+ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
+         sqrt(drat) * r_cloud / vflow,
+#ifdef ENERGY_COOLING
+         tcool(drat, (Gamma_1 + dp) / drat),
+#else
+         -1, -1
+#endif
+         (Gamma_1 + dp) / drat,
+         tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
+         tcool(1., drat *(Gamma_1 + dp)));
+
+// close file if ICs are read from file
+if (fp_rho != NULL)
+{
+  fclose(fp_rho);
+  free(cloud_dat_rho);
+  if (nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
+    ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
+              ndim_file[0] * ndim_file[1] * ndim_file[2]);
+}
+
+/* MHD part --> generate tangled magnetic field in cloud */
+if (tangled)
+{
+  A = (Real3Vect ***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
+
+  for (k = 0; k < nx3; k++)
+  {
+    for (j = 0; j < nx2; j++)
+    {
+      for (i = 0; i < nx1; i++)
+      {
+        A[k][j][i].x3 = A[k][j][i].x2 = A[k][j][i].x1 = 0.0;
       }
     }
-  } /* end grid loops */
-
-  // Some info printed
-  ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
-	   sqrt(drat) * r_cloud / vflow,
-#ifdef ENERGY_COOLING
-	   tcool(drat, (Gamma_1 + dp) / drat),
-#else
-	   -1, -1
-#endif
-	   (Gamma_1 + dp) / drat,
-	   tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
-	   tcool(1., drat * (Gamma_1 + dp))
-	   );
-
-
-  // close file if ICs are read from file
-  if(fp_rho != NULL) { 
-    fclose(fp_rho);
-    free(cloud_dat_rho);
-    if(nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
-      ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
-                ndim_file[0] * ndim_file[1] * ndim_file[2]);
   }
 
-  /* MHD part --> generate tangled magnetic field in cloud */
-  if(tangled){
-    A = (Real3Vect***) calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
+  nterms = par_getd_def("problem", "nterms", 10);
+  alpha = par_getd_def("problem", "alpha", 50.0);
+  for (i = 0; i < nterms; i++)
+  {
+    if (myID_Comm_world == 0)
+    {
+      phi = randomreal2(0.0, 2.0 * PI);
+      theta = acos(2.0 * randomreal2(0.0, 1.0) - 1.0);
+      beta = randomreal2(0.0, 2.0 * PI);
 
-    for (k=0; k<nx3; k++) {
-      for (j=0; j<nx2; j++) {
-        for (i=0; i<nx1; i++) {
-          A[k][j][i].x3 = A[k][j][i].x2 = A[k][j][i].x1 = 0.0;
-        }
-      }
+      amp = RandomNormal2(1.0, 0.25);
     }
-
-    nterms = par_getd_def("problem", "nterms",10);
-    alpha = par_getd_def("problem","alpha",50.0);
-    for (i=0; i<nterms; i++) {
-      if (myID_Comm_world == 0) {
-        phi = randomreal2(0.0, 2.0*PI);
-        theta   = acos(2.0*randomreal2(0.0, 1.0)-1.0);
-        beta  = randomreal2(0.0, 2.0*PI);
-
-        amp   = RandomNormal2(1.0, 0.25);
-
-      } else {
-        theta = phi = beta = amp = alpha = 0.0;
-      }
+    else
+    {
+      theta = phi = beta = amp = alpha = 0.0;
+    }
 
 #ifdef MPI_PARALLEL
-      my_scal[0] = theta;
-      my_scal[1] = phi;
-      my_scal[2] = beta;
-      my_scal[3] = amp;
-      my_scal[4] = alpha;
+    my_scal[0] = theta;
+    my_scal[1] = phi;
+    my_scal[2] = beta;
+    my_scal[3] = amp;
+    my_scal[4] = alpha;
 
+    ierr = MPI_Allreduce(&my_scal, &scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+    if (ierr)
+      ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
 
-      ierr = MPI_Allreduce(&my_scal, &scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-      if (ierr)
-        ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
-
-      theta = scal[0];
-      phi   = scal[1];
-      beta  = scal[2];
-      amp   = scal[3];
-      alpha = scal[4];
+    theta = scal[0];
+    phi = scal[1];
+    beta = scal[2];
+    amp = scal[3];
+    alpha = scal[4];
 #endif
 
-      add_term(A, pGrid, theta, phi, alpha, beta, amp);
-    } /* end loop over nterms */ 
+    add_term(A, pGrid, theta, phi, alpha, beta, amp);
+  } /* end loop over nterms */
 
-    Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
+  Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
 
-    for (k=0; k<nx3; k++) {
-      for (j=0; j<nx2; j++) {
-        for (i=0; i<nx1; i++) {
-          A[k][j][i].x1 *= Bin / sqrt(nterms);
-          A[k][j][i].x2 *= Bin / sqrt(nterms);
-          A[k][j][i].x3 *= Bin / sqrt(nterms);
+  for (k = 0; k < nx3; k++)
+  {
+    for (j = 0; j < nx2; j++)
+    {
+      for (i = 0; i < nx1; i++)
+      {
+        A[k][j][i].x1 *= Bin / sqrt(nterms);
+        A[k][j][i].x2 *= Bin / sqrt(nterms);
+        A[k][j][i].x3 *= Bin / sqrt(nterms);
 
-          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          r = sqrt(x1*x1 + x2*x2 + x3*x3);
-          if (r > r_cloud)
-            A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
-        }
-      }
-    }
-
-
-  } /*end of if(tangled) */
-
-
-  /* take curl here */
-
-   if(tangled){
-     free_3d_array((void***) A);
-   }
-  /* cell-centered magnetic field */
-  /*   derive this from interface field to be internally consistent
-       with athena */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+        r = sqrt(x1 * x1 + x2 * x2 + x3 * x3);
+        if (r > r_cloud)
+          A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
       }
     }
   }
 
+} /*end of if(tangled) */
 
-  if (pDomain->Disp[0] == 0)
-    bvals_mhd_fun(pDomain, left_x1,  bc_ix1);
-  if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
-    bvals_mhd_fun(pDomain, right_x1, bc_ox1);
+/* take curl here */
 
-  /* seed a perturbation */
-   for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        fact = -1.0;
-        while (fabs(fact) > 0.03)
-          fact = (RandomNormal(0.0, 0.01));
-        if(fabs(fact) < .03)
-          pGrid->U[k][j][i].d *= (1.0+fact);
-      }
+if (tangled)
+{
+  free_3d_array((void ***)A);
+}
+/* cell-centered magnetic field */
+/*   derive this from interface field to be internally consistent
+     with athena */
+for (k = ks; k <= ke; k++)
+{
+  for (j = js; j <= je; j++)
+  {
+    for (i = is; i <= ie; i++)
+    {
     }
-   }
+  }
+}
+
+if (pDomain->Disp[0] == 0)
+  bvals_mhd_fun(pDomain, left_x1, bc_ix1);
+if (pDomain->MaxX[0] == pDomain->RootMaxX[0])
+  bvals_mhd_fun(pDomain, right_x1, bc_ox1);
+
+/* seed a perturbation */
+for (k = ks; k <= ke; k++)
+{
+  for (j = js; j <= je; j++)
+  {
+    for (i = is; i <= ie; i++)
+    {
+      cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+      fact = -1.0;
+      while (fabs(fact) > 0.03)
+        fact = (RandomNormal(0.0, 0.01));
+      if (fabs(fact) < .03)
+        pGrid->U[k][j][i].d *= (1.0 + fact);
+    }
+  }
+}
 
 #if ENERGY_HEATING == 2
-   ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
-            heating_rate, sdLambda(drat,(Gamma_1 + dp) / drat));
+ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
+         heating_rate, sdLambda(drat, (Gamma_1 + dp) / drat));
 #endif
 
-  return;
+return;
 }
 
 /*==============================================================================
@@ -585,7 +572,7 @@ void problem_write_restart(MeshS *pM, FILE *fp)
 {
 #ifdef FOLLOW_CLOUD
   fwrite(&x_shift, sizeof(Real), 1, fp);
-  fwrite(&vflow,   sizeof(Real), 1, fp);
+  fwrite(&vflow, sizeof(Real), 1, fp);
 #endif
 
   return;
@@ -593,25 +580,26 @@ void problem_write_restart(MeshS *pM, FILE *fp)
 
 void problem_read_restart(MeshS *pM, FILE *fp)
 {
-  int nl,nd;
+  int nl, nd;
 
-  for (nl=0; nl<(pM->NLevels); nl++) {
-    for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++) {
+  for (nl = 0; nl < (pM->NLevels); nl++)
+  {
+    for (nd = 0; nd < (pM->DomainsPerLevel[nl]); nd++)
+    {
       if (pM->Domain[nl][nd].Disp[0] == 0)
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1,  bc_ix1);
-       if (pM->Domain[nl][nd].MaxX[0] == pM->Domain[nl][nd].RootMaxX[0])
-         bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, bc_ox1);
-
+        bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1, bc_ix1);
+      if (pM->Domain[nl][nd].MaxX[0] == pM->Domain[nl][nd].RootMaxX[0])
+        bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, bc_ox1);
     }
   }
 
-  drat  = par_getd("problem", "drat");
+  drat = par_getd("problem", "drat");
   vflow = par_getd("problem", "vflow");
   vflow0 = vflow;
 
-  acc = par_getd_def("problem","acceleration",0.0);
+  acc = par_getd_def("problem", "acceleration", 0.0);
 
-  tfloor = par_getd_def("problem", "tfloor", 1.e-2/drat);
+  tfloor = par_getd_def("problem", "tfloor", 1.e-2 / drat);
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
@@ -628,7 +616,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
 #ifdef VISCOSITY
-  nu   = par_getd("problem","nu");
+  nu = par_getd("problem", "nu");
   NuFun_i = NULL;
   NuFun_a = nu_fun;
 #endif
@@ -649,17 +637,16 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
   dump_history_enroll(hst_Erad, "Erad");
 
-
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift");
-  dump_history_enroll_alt(hst_vflow,  "v_flow");
+  dump_history_enroll_alt(hst_vflow, "v_flow");
 #endif
 
 #if (NSCALARS > 0)
-  dump_history_enroll(hst_c,    "<c>");
+  dump_history_enroll(hst_c, "<c>");
   dump_history_enroll(hst_c_sq, "<c^2>");
 
-  dump_history_enroll(hst_cE,  "<c * E>");
+  dump_history_enroll(hst_cE, "<c * E>");
   dump_history_enroll(hst_cx1, "<c * x1>");
 
   dump_history_enroll(hst_cvx, "<c * Vx>");
@@ -670,7 +657,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   dump_history_enroll(hst_cvy_sq, "<(c * Vy)^2>");
   dump_history_enroll(hst_cvz_sq, "<(c * Vz)^2>");
   dump_history_enroll(hst_Sdye, "dye entropy");
-#endif  /* NSCALARS */
+#endif /* NSCALARS */
 
   /*
 #ifdef ENERGY_COOLING
@@ -678,11 +665,10 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 #endif
   */
 
-
   /* DANGER: make sure the order here matches the order in write_restart() */
 #ifdef FOLLOW_CLOUD
   fread(&x_shift, sizeof(Real), 1, fp);
-  fread(&vflow,   sizeof(Real), 1, fp);
+  fread(&vflow, sizeof(Real), 1, fp);
 #endif
   return;
 }
@@ -692,7 +678,8 @@ ConsFun_t get_usr_expr(const char *expr)
   return NULL;
 }
 
-VOutFun_t get_usr_out_fun(const char *name){
+VOutFun_t get_usr_out_fun(const char *name)
+{
   return NULL;
 }
 
@@ -702,16 +689,19 @@ void Userwork_before_loop(MeshS *pM)
 
   /* report nans first, so we can fix them before they propagate into
      the following functions. */
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
 #ifdef REPORT_NANS
-        ntot = report_nans(pM, &(pM->Domain[nl][nd]),1);
-        //if(ntot > 0)
-        //report_nans(pM, &(pM->Domain[nl][nd]),1);
+        ntot = report_nans(pM, &(pM->Domain[nl][nd]), 1);
+        // if(ntot > 0)
+        // report_nans(pM, &(pM->Domain[nl][nd]),1);
 #endif
 #ifdef INSTANTCOOL
-        after_cool(pM, &(pM->Domain[nl][nd]),1);
+        after_cool(pM, &(pM->Domain[nl][nd]), 1);
 #endif
       }
     }
@@ -730,24 +720,27 @@ void Userwork_in_loop(MeshS *pM)
 #ifdef FOLLOW_CLOUD
   dvx = cloud_mass_weighted_velocity(pM);
   // Artificial shift
-  //dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
+  // dvx = 4e-4 * MAX(0, (1 - (r0 + x_shift * x_shift) / (4 * r0))) + 1e-3 / (1 + x_shift) + MIN(1e-9 * x_shift * x_shift, 1e-3);
 
   /* if(pM->time < 2)
-     dvx = 0; 
+     dvx = 0;
   */
 
-  if((dvx < 0.0) || isnan(dvx)){ 
-    ath_pout(0,"[bad dvx:] %0.15e setting to 0.\n",dvx);
+  if ((dvx < 0.0) || isnan(dvx))
+  {
+    ath_pout(0, "[bad dvx:] %0.15e setting to 0.\n", dvx);
     dvx = 0.0;
   }
 
   /* Enforcing ceiling to  shift */
-  if(dvx > 1e-2) {
+  if (dvx > 1e-2)
+  {
     dvx = 1e-2;
-    ath_pout(0,"[bad dvx:] %0.15e setting to 0.01\n",dvx);
+    ath_pout(0, "[bad dvx:] %0.15e setting to 0.01\n", dvx);
   }
 
-  if(dvx > 0.0){
+  if (dvx > 0.0)
+  {
     expt = floor(log10(dvx));
     newdvx = dvx / pow(10, expt);
     newdvx = floor(newdvx * 1.0e4) / 1.0e4;
@@ -756,17 +749,21 @@ void Userwork_in_loop(MeshS *pM)
   }
 
 #ifndef FLOW_PROFILE
-  if(vflow - dvx < 0.00){ // does not allow vflow < 0
+  if (vflow - dvx < 0.00)
+  { // does not allow vflow < 0
     dvx = vflow;
   }
 #endif /* not FLOW_PROFILE */
-  ath_pout(0,"[dvx:]  %0.10e [vflow:] %.10e [xshift:] %.10e\n",dvx,vflow, x_shift);
+  ath_pout(0, "[dvx:]  %0.10e [vflow:] %.10e [xshift:] %.10e\n", dvx, vflow, x_shift);
   vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
 #ifdef FOLLOW_CLOUD
         boost_frame(&(pM->Domain[nl][nd]), dvx);
 #endif
@@ -774,16 +771,22 @@ void Userwork_in_loop(MeshS *pM)
     }
   }
 
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
       }
     }
   }
 
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
 #ifdef ENERGY_COOLING
         integrate_cooling(pM->Domain[nl][nd].Grid);
 #endif
@@ -797,10 +800,10 @@ void Userwork_in_loop(MeshS *pM)
   // Accelerate
   vflow += acc * pM->dt;
 
-  if (pM->dt < dtmin){
-    data_output(pM,1);
+  if (pM->dt < dtmin)
+  {
+    data_output(pM, 1);
     ath_error("dt too small\n");
-
   }
 
   return;
@@ -816,8 +819,6 @@ void Userwork_after_loop(MeshS *pM)
   return;
 }
 
-
-
 /*==============================================================================
  * PHYSICS FUNCTIONS:
  * boost_frame()         - boost simulation frame by a velocity increment
@@ -832,25 +833,30 @@ void Userwork_after_loop(MeshS *pM)
 static void boost_frame(DomainS *pDomain, Real dvx)
 {
   int i, j, k;
-  int is,ie,js,je,ks,ke;
+  int is, ie, js, je, ks, ke;
   Real d;
 
   GridS *pGrid = pDomain->Grid;
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
+  is = pGrid->is;
+  ie = pGrid->ie;
+  js = pGrid->js;
+  je = pGrid->je;
+  ks = pGrid->ks;
+  ke = pGrid->ke;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
         d = pGrid->U[k][j][i].d;
 
 #ifndef ISOTHERMAL
         pGrid->U[k][j][i].E += 0.5 * d * SQR(dvx);
         pGrid->U[k][j][i].E -= dvx * pGrid->U[k][j][i].M1;
-#endif  /* ISOTHERMAL */
+#endif /* ISOTHERMAL */
         pGrid->U[k][j][i].M1 -= dvx * d;
-
       }
     }
   }
@@ -859,20 +865,20 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   x_shift -= vflow * pDomain->Grid->dt;
   return;
 }
-#endif  /* FOLLOW_CLOUD */
+#endif /* FOLLOW_CLOUD */
 
 #ifdef REPORT_NANS
 static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
 {
 #ifndef ISOTHERMAL
   int i, j, k;
-  int is,ie,js,je,ks,ke;
+  int is, ie, js, je, ks, ke;
   Real x1, x2, x3;
-  int V=1; //verbose off = 0
+  int V = 1; // verbose off = 0
   int NO = 5;
   Real KE, rho, press, temp;
-  int nanpress=0, nanrho=0, nanv=0, nnan;   /* nan count */
-  int npress=0,   nrho=0,   nv=0,   nfloor; /* floor count */
+  int nanpress = 0, nanrho = 0, nanv = 0, nnan; /* nan count */
+  int npress = 0, nrho = 0, nv = 0, nfloor;     /* floor count */
   Real beta;
   Real scal[8];
 #ifdef MPI_PARALLEL
@@ -887,79 +893,102 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   */
   GridS *pGrid = pDomain->Grid;
 
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
+  is = pGrid->is;
+  ie = pGrid->ie;
+  js = pGrid->js;
+  je = pGrid->je;
+  ks = pGrid->ks;
+  ke = pGrid->ke;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
         rho = pGrid->U[k][j][i].d;
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
         KE = (SQR(pGrid->U[k][j][i].M1) +
               SQR(pGrid->U[k][j][i].M2) +
               SQR(pGrid->U[k][j][i].M3)) /
-          (2.0 * rho);
+             (2.0 * rho);
 
         press = pGrid->U[k][j][i].E - KE;
         press *= Gamma_1;
         temp = press / rho;
-        beta = fabs(200.*betafloor);
+        beta = fabs(200. * betafloor);
 
-        if (press != press) {
+        if (press != press)
+        {
           nanpress++;
-          if(V && nanpress < NO) printf("bad press %e R %e  %e %e %e  %d %d %d %e %e %e %e\n",press, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta);
-          if(fix)
+          if (V && nanpress < NO)
+            printf("bad press %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", press, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
+          if (fix)
             temp = tfloor;
-        } else if (temp < tfloor) {
+        }
+        else if (temp < tfloor)
+        {
           npress++;
-          if(V && npress < NO) printf("bad tempF %e R %e  %e %e %e  %d %d %d %e %e %e %e\n",temp, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta);
-          if(fix)
+          if (V && npress < NO)
+            printf("bad tempF %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", temp, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
+          if (fix)
             temp = tfloor;
-        } else if (temp > tceil && beta > 10.0 * betafloor) {
+        }
+        else if (temp > tceil && beta > 10.0 * betafloor)
+        {
           npress++;
-          if(V && npress < NO) printf("bad tempC %e R %e  %e %e %e  %d %d %d %e %e %e %e\n",temp, 1.0/pGrid->dx1, x1, x2, x3, i, j, k,rho, press, temp, beta);
-          if(fix)
+          if (V && npress < NO)
+            printf("bad tempC %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", temp, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
+          if (fix)
             temp = tceil;
         }
 
-        if (rho != rho) {
+        if (rho != rho)
+        {
           nanrho++;
-          if(V&&nanrho < NO) printf("bad rho %e R %e  %e %e %e  %d %d %d\n",rho, 1.0/pGrid->dx1, x1, x2, x3, i, j, k);
-          if(fix)
+          if (V && nanrho < NO)
+            printf("bad rho %e R %e  %e %e %e  %d %d %d\n", rho, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k);
+          if (fix)
             rho = rhofloor;
-        } else if (rho < rhofloor) {
+        }
+        else if (rho < rhofloor)
+        {
           nrho++;
-          if(V&& nrho < NO) printf("bad rho %e R %e  %e %e %e  %d %d %d\n",rho, 1.0/pGrid->dx1, x1, x2, x3, i, j, k);
-          if(fix)
+          if (V && nrho < NO)
+            printf("bad rho %e R %e  %e %e %e  %d %d %d\n", rho, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k);
+          if (fix)
             rho = rhofloor;
         }
 
-        if (pGrid->U[k][j][i].M1 != pGrid->U[k][j][i].M1) {
+        if (pGrid->U[k][j][i].M1 != pGrid->U[k][j][i].M1)
+        {
           nanv++;
-          if(fix)
+          if (fix)
             pGrid->U[k][j][i].M1 = 0.0;
         }
-        if (pGrid->U[k][j][i].M2 != pGrid->U[k][j][i].M2) {
+        if (pGrid->U[k][j][i].M2 != pGrid->U[k][j][i].M2)
+        {
           nanv++;
-          if(fix)
+          if (fix)
             pGrid->U[k][j][i].M2 = 0.0;
         }
-        if (pGrid->U[k][j][i].M3 != pGrid->U[k][j][i].M3) {
+        if (pGrid->U[k][j][i].M3 != pGrid->U[k][j][i].M3)
+        {
           nanv++;
-          if(fix)
+          if (fix)
             pGrid->U[k][j][i].M3 = 0.0;
         }
         /* write values back to the grid */
         /* TODO: what about B??? */
-        if(fix) {
-          pGrid->U[k][j][i].d  = rho;
+        if (fix)
+        {
+          pGrid->U[k][j][i].d = rho;
           KE = (SQR(pGrid->U[k][j][i].M1) +
                 SQR(pGrid->U[k][j][i].M2) +
                 SQR(pGrid->U[k][j][i].M3)) /
-            (2.0 * rho);
+               (2.0 * rho);
 
-          pGrid->U[k][j][i].E = temp*rho/Gamma_1 + KE;
+          pGrid->U[k][j][i].E = temp * rho / Gamma_1 + KE;
         }
       }
     }
@@ -979,39 +1008,39 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
     ath_error("[report_nans]: MPI_Allreduce returned error %d\n", ierr);
 
   nanpress = scal[0];
-  nanrho   = scal[1];
-  nanv     = scal[2];
-  npress   = scal[4];
-  nrho     = scal[5];
-  nv       = scal[6];
-#endif  /* MPI_PARALLEL */
-
+  nanrho = scal[1];
+  nanv = scal[2];
+  npress = scal[4];
+  nrho = scal[5];
+  nv = scal[6];
+#endif /* MPI_PARALLEL */
 
   /* sum up the # of bad cells and report */
-  nnan = nanpress+nanrho+nanv;
+  nnan = nanpress + nanrho + nanv;
   /* sum up the # of floored cells and report */
-  nfloor = npress+nrho+nv;
-  if(nfloor > 0) {
+  nfloor = npress + nrho + nv;
+  if (nfloor > 0)
+  {
     ath_pout(0, "[report_nans]: floored %d cells: %d P, %d d, %d v.\n",
-      nfloor, npress, nrho, nv);
-    }
-
+             nfloor, npress, nrho, nv);
+  }
 
   //  if ((nnan > 0 || nfloor -nmag > 30) && fix == 0) {
-    if (nnan > 0 ){// && fix == 0) {
+  if (nnan > 0)
+  { // && fix == 0) {
     ath_pout(0, "[report_nans]: found %d nan cells: %d P, %d d, %d v.\n",
-       nnan, nanpress, nanrho, nanv);
+             nnan, nanpress, nanrho, nanv);
 
-    nan_dump.n      = 100;
-    nan_dump.dt     = HUGE_NUMBER;
-    nan_dump.t      = pM->time;
-    nan_dump.num    = 1000 + nan_dump_count;
-    nan_dump.out    = "prim";
-    nan_dump.nlevel = -1;       /* dump all levels */
-
+    nan_dump.n = 100;
+    nan_dump.dt = HUGE_NUMBER;
+    nan_dump.t = pM->time;
+    nan_dump.num = 1000 + nan_dump_count;
+    nan_dump.out = "prim";
+    nan_dump.nlevel = -1; /* dump all levels */
 
     dump_vtk(pM, &nan_dump);
-    if(nnan) nan_dump_count++;
+    if (nnan)
+      nan_dump_count++;
     if (nan_dump_count > 10)
       ath_error("[report_nans]: too many nan'd timesteps.\n");
 
@@ -1019,13 +1048,11 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
       ath_error("[report_nans]: Too many floored cells.\n");
   }
 
+#endif /* ISOTHERMAL */
 
-#endif  /* ISOTHERMAL */
-
-  return nfloor+nnan;
+  return nfloor + nnan;
 }
-#endif  /* REPORT_NANS */
-
+#endif /* REPORT_NANS */
 
 #ifdef ENERGY_COOLING
 /* ================================================================ */
@@ -1033,35 +1060,40 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
 
 static void init_cooling()
 {
-  int i, k, n=nfit_cool_T-1;
+  int i, k, n = nfit_cool_T - 1;
   Real term;
   const Real mu = 0.62, mu_e = 1.17;
 
   /* convert T in the cooling function from keV to code units */
-  for (k=0; k<=n; k++) {
+  for (k = 0; k <= n; k++)
+  {
     sdT[k] /= (8.197 * mu);
-    if(sdT[k] <= 0) ath_error("sdT[%d]=%e. Has to be > 0.", k, sdT[k]);
+    if (sdT[k] <= 0)
+      ath_error("sdT[%d]=%e. Has to be > 0.", k, sdT[k]);
   }
 
-  if(tfloor_cooling < sdT[0])
+  if (tfloor_cooling < sdT[0])
     ath_error("Cooling floor is smaller than first entry of cooling function (%e vs %e).",
               tfloor_cooling, sdT[0]);
 
   /* populate Yk following equation A6 in Townsend (2009) */
-  for(i = 0; i < nfit_cool_d; i++) {
+  for (i = 0; i < nfit_cool_d; i++)
+  {
     Yk[i][n] = 0.0;
-    for (k=n-1; k>=0; k--){
-      if(sdL[i][k] <= 0) ath_error("sdL[%d][%d]=%e. Has to be > 0.", i, k, sdL[i][k]);
-      term = (sdL[i][n]/sdL[i][k]) * (sdT[k]/sdT[n]);
+    for (k = n - 1; k >= 0; k--)
+    {
+      if (sdL[i][k] <= 0)
+        ath_error("sdL[%d][%d]=%e. Has to be > 0.", i, k, sdL[i][k]);
+      term = (sdL[i][n] / sdL[i][k]) * (sdT[k] / sdT[n]);
 
       if (sdexpt[i][k] == 1.0)
-        term *= log(sdT[k]/sdT[k+1]);
+        term *= log(sdT[k] / sdT[k + 1]);
       else
-        term *= ((1.0 - pow(sdT[k]/sdT[k+1], sdexpt[i][k]-1.0)) / (1.0-sdexpt[i][k]));
+        term *= ((1.0 - pow(sdT[k] / sdT[k + 1], sdexpt[i][k] - 1.0)) / (1.0 - sdexpt[i][k]));
 
-      Yk[i][k] = Yk[i][k+1] - term;
+      Yk[i][k] = Yk[i][k + 1] - term;
 
-      if(isnan(Yk[i][k]))
+      if (isnan(Yk[i][k]))
         ath_error("Error initializing cooling. nan in Yk[%d][%d]", i, k);
     }
   }
@@ -1079,38 +1111,44 @@ static Real sdLambda(const Real d0, const Real T)
   int interpolate = (nfit_cool_d > 1);
 
   /* first find the temperature bin */
-  for(iT=nfit_cool_T-1; iT>=0; iT--){
+  for (iT = nfit_cool_T - 1; iT >= 0; iT--)
+  {
     if (T >= sdT[iT])
       break;
   }
-  if(iT < 0)
+  if (iT < 0)
     ath_error("[sdLambda] T %e d %e %e %d\n", T, d, sdT[0], iT);
 
   /* Find the density bin */
-  if(d <= sdd[0]) {
+  if (d <= sdd[0])
+  {
     interpolate = 0;
     id = 0;
-  } else if(d >= sdd[nfit_cool_d - 1]) {
+  }
+  else if (d >= sdd[nfit_cool_d - 1])
+  {
     interpolate = 0;
     id = nfit_cool_d - 1;
-  } else {
-    for(id=nfit_cool_d - 1; id>=0; id--) {
-      if(d >= sdd[id])
+  }
+  else
+  {
+    for (id = nfit_cool_d - 1; id >= 0; id--)
+    {
+      if (d >= sdd[id])
         break;
     }
   }
 
   /* piecewise power-law; see equation A4 of Townsend (2009) */
-  L1 = conv_fac * sdL[id][iT] * pow(T/sdT[iT], sdexpt[id][iT]);
+  L1 = conv_fac * sdL[id][iT] * pow(T / sdT[iT], sdexpt[id][iT]);
 
-  if(!interpolate) 
+  if (!interpolate)
     return L1;
 
-  L2 = conv_fac * sdL[id+1][iT] * pow(T/sdT[iT], sdexpt[id+1][iT]);
+  L2 = conv_fac * sdL[id + 1][iT] * pow(T / sdT[iT], sdexpt[id + 1][iT]);
 
   // Linear interpolation
-  return L1 + (L2 - L1) / (sdd[id+1] - sdd[id]) * d;
-
+  return L1 + (L2 - L1) / (sdd[id + 1] - sdd[id]) * d;
 }
 
 static Real tcool(const Real d, const Real T)
@@ -1118,9 +1156,8 @@ static Real tcool(const Real d, const Real T)
   const Real mu = 0.62, mu_e = 1.17;
 
   /* equation 13 of Townsend (2009) */
-  return (SQR(mu_e) * T) / (Gamma_1 * d * sdLambda(d,T));
+  return (SQR(mu_e) * T) / (Gamma_1 * d * sdLambda(d, T));
 }
-
 
 /* see sdLambda() or equation A1 of Townsend (2009) for the
    definition */
@@ -1132,55 +1169,57 @@ static Real Y(const Real T, const int id)
   Real term;
 
   /* first find the temperature bin */
-  for(iT=nT; iT>=0; iT--){
+  for (iT = nT; iT >= 0; iT--)
+  {
     if (T >= sdT[iT])
       break;
   }
 
   /* calculate Y using equation A5 in Townsend (2009) */
-  term = (sdL[id][nT]/sdL[id][iT]) * (sdT[iT]/sdT[nT]);
+  term = (sdL[id][nT] / sdL[id][iT]) * (sdT[iT] / sdT[nT]);
 
   if (sdexpt[id][iT] == 1.0)
-    term *= log(sdT[iT]/T);
+    term *= log(sdT[iT] / T);
   else
-    term *= ((1.0 - pow(sdT[iT]/T, sdexpt[id][iT]-1.0)) / (1.0-sdexpt[id][iT]));
+    term *= ((1.0 - pow(sdT[iT] / T, sdexpt[id][iT] - 1.0)) / (1.0 - sdexpt[id][iT]));
 
   return (Yk[id][iT] + term);
 }
 
-
-static Real Yinv(const Real Y1, const int id) {
-  //int iT,id;
+static Real Yinv(const Real Y1, const int id)
+{
+  // int iT,id;
   int nT = nfit_cool_T - 1;
   int nd = nfit_cool_d - 1;
   int iT;
   Real term;
 
   /* find the bin i in which the final temperature will be */
-  for(iT=nT; iT>0; iT--){       // use iT>0 instead of iT>=0 to force min(iT)=0
-    if (Y(sdT[iT], id) >= Y1)   // this means that newT<sdT[0] are wrong
-      break;                    // but since we have Tfloor>sdT[0] we're good.
+  for (iT = nT; iT > 0; iT--)
+  {                           // use iT>0 instead of iT>=0 to force min(iT)=0
+    if (Y(sdT[iT], id) >= Y1) // this means that newT<sdT[0] are wrong
+      break;                  // but since we have Tfloor>sdT[0] we're good.
   }
 
   /* calculate Yinv using equation A7 in Townsend (2009) */
-  term = (sdL[id][iT]/sdL[id][nT]) * (sdT[nT]/sdT[iT]);
+  term = (sdL[id][iT] / sdL[id][nT]) * (sdT[nT] / sdT[iT]);
   term *= (Y1 - Yk[id][iT]);
 
   if (sdexpt[id][iT] == 1.0)
-    term = exp(-1.0*term);
-  else{
-    term = pow(1.0 - (1.0-sdexpt[id][iT])*term,
-               1.0/(1.0-sdexpt[id][iT]));
+    term = exp(-1.0 * term);
+  else
+  {
+    term = pow(1.0 - (1.0 - sdexpt[id][iT]) * term,
+               1.0 / (1.0 - sdexpt[id][iT]));
   }
 
-
-  if(!isfinite(term)) {
+  if (!isfinite(term))
+  {
     ath_error("nan detected in Yinv (term=%e, Y1=%e).\n", term, Y1);
   }
 
   return (sdT[iT] * term);
 }
-
 
 static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
 {
@@ -1190,45 +1229,51 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   const Real d = d0 * dens_conv;
   int interpolate = nfit_cool_d > 1;
 
-  if(T <= tfloor_cooling)
+  if (T <= tfloor_cooling)
     return tfloor_cooling;
 
-  Tref = sdT[nfit_cool_T-1];
-  dref = sdd[nfit_cool_d-1] / dens_conv;
+  Tref = sdT[nfit_cool_T - 1];
+  dref = sdd[nfit_cool_d - 1] / dens_conv;
 
   /* Find the density bin */
-  if(d <= sdd[0]) {
+  if (d <= sdd[0])
+  {
     interpolate = 0;
     id = 0;
-  } else if(d >= sdd[nfit_cool_d - 1]) {
+  }
+  else if (d >= sdd[nfit_cool_d - 1])
+  {
     interpolate = 0;
     id = nfit_cool_d - 1;
-  } else {
-    for(id=nfit_cool_d - 1; id>=0; id--) {
-      if(d >= sdd[id])
+  }
+  else
+  {
+    for (id = nfit_cool_d - 1; id >= 0; id--)
+    {
+      if (d >= sdd[id])
         break;
     }
   }
-  assert(id>=0);
-  assert(id<nfit_cool_d);
+  assert(id >= 0);
+  assert(id < nfit_cool_d);
 
   /* Calculate new T */
-  term1 = (T/Tref) * (sdLambda(d0, Tref)/sdLambda(d0, T)) * (dt_hydro/tcool(d0, T));
-  T1 = Yinv(Y(T,id) + term1, id);
-  if(isnan(T1)) {
-    printf("[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e, dt_hydro=%e, tcool=%e, Tref=%e, sdLambda=%e, term1=%e, Y(T,id)=%e\n", d, id, T, T1,dt_hydro, tcool(d0,T),Tref, sdLambda(d0, T), term1, Y(T,id));
+  term1 = (T / Tref) * (sdLambda(d0, Tref) / sdLambda(d0, T)) * (dt_hydro / tcool(d0, T));
+  T1 = Yinv(Y(T, id) + term1, id);
+  if (isnan(T1))
+  {
+    printf("[newtemp] d=%.3e, id=%d, T=%.3e --> %.3e, dt_hydro=%e, tcool=%e, Tref=%e, sdLambda=%e, term1=%e, Y(T,id)=%e\n", d, id, T, T1, dt_hydro, tcool(d0, T), Tref, sdLambda(d0, T), term1, Y(T, id));
     assert(!isnan(T1));
   }
-  if(!interpolate)
+  if (!interpolate)
     return T1;
 
-  T2 = Yinv(Y(T,id+1) + term1, id+1);
+  T2 = Yinv(Y(T, id + 1) + term1, id + 1);
   assert(!isnan(T2));
 
   /* Linear interpolation along density */
-  return T1 + (T2 - T1) / (sdd[id+1] - sdd[id]) * d;
+  return T1 + (T2 - T1) / (sdd[id + 1] - sdd[id]) * d;
 }
-
 
 static void integrate_cooling(GridS *pG)
 {
@@ -1242,23 +1287,29 @@ static void integrate_cooling(GridS *pG)
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
 
-  is = pG->is;  ie = pG->ie;
-  js = pG->js;  je = pG->je;
-  ks = pG->ks;  ke = pG->ke;
+  is = pG->is;
+  ie = pG->ie;
+  js = pG->js;
+  je = pG->je;
+  ks = pG->ks;
+  ke = pG->ke;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
 
         W = Cons_to_Prim(&(pG->U[k][j][i]));
         pG->U[k][j][i].Erad = 0;
 
         /* find temp in keV */
-        temp = W.P/W.d;
+        temp = W.P / W.d;
         tempold = temp;
 
         /* do not cool above a certain threshold */
-        if( (tnotcool > 0) && (temp > tnotcool) )
+        if ((tnotcool > 0) && (temp > tnotcool))
           continue;
 
         temp = newtemp_townsend(W.d, temp, pG->dt);
@@ -1271,34 +1322,32 @@ static void integrate_cooling(GridS *pG)
         U = Prim_to_Cons(&W);
 
         /* record cooled energy */
-	// pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
+        // pG->U[k][j][i].Erad += (pG->U[k][j][i].E - U.E);
         pG->U[k][j][i].Erad = (pG->U[k][j][i].E - U.E) / pG->dt;
 
         pG->U[k][j][i].E = U.E;
-
       }
     }
   }
 
   return;
-
 }
-
 
 #if ENERGY_HEATING == 1
 /*
   Radiate cooled energy over whole domain
  */
-static void radiate_energy(MeshS *pM) {
+static void radiate_energy(MeshS *pM)
+{
   ath_error("Does not work right now.");
   Real Erad_total = 0;
   GridS *pG;
   int i, j, k, is, ie, js, je, ks, ke;
   int nl, nd;
   Real dV;
-  Real V = (pM->RootMaxX[2] - pM->RootMinX[2]) * \
-    (pM->RootMaxX[1] - pM->RootMinX[1]) * \
-    (pM->RootMaxX[0] - pM->RootMinX[0]);
+  Real V = (pM->RootMaxX[2] - pM->RootMinX[2]) *
+           (pM->RootMaxX[1] - pM->RootMinX[1]) *
+           (pM->RootMaxX[0] - pM->RootMinX[0]);
 
 #ifdef MPI_PARALLEL
   int ierr;
@@ -1306,18 +1355,27 @@ static void radiate_energy(MeshS *pM) {
 #endif
 
   // Calculate total energy
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
         pG = pM->Domain[nl][nd].Grid;
 
-        is = pG->is;  ie = pG->ie;
-        js = pG->js;  je = pG->je;
-        ks = pG->ks;  ke = pG->ke;
+        is = pG->is;
+        ie = pG->ie;
+        js = pG->js;
+        je = pG->je;
+        ks = pG->ks;
+        ke = pG->ke;
 
-        for (k=ks; k<=ke; k++) {
-          for (j=js; j<=je; j++) {
-            for (i=is; i<=ie; i++) {
+        for (k = ks; k <= ke; k++)
+        {
+          for (j = js; j <= je; j++)
+          {
+            for (i = is; i <= ie; i++)
+            {
               Erad_total += pG->U[k][j][i].Erad;
               pG->U[k][j][i].Erad = 0.0;
             }
@@ -1337,19 +1395,28 @@ static void radiate_energy(MeshS *pM) {
 #endif
 
   // Distribute energy over grid
-  for (nl=0; nl<=(pM->NLevels)-1; nl++) {
-    for (nd=0; nd<=(pM->DomainsPerLevel[nl])-1; nd++) {
-      if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
+  {
+    for (nd = 0; nd <= (pM->DomainsPerLevel[nl]) - 1; nd++)
+    {
+      if (pM->Domain[nl][nd].Grid != NULL)
+      {
         pG = pM->Domain[nl][nd].Grid;
 
-        is = pG->is;  ie = pG->ie;
-        js = pG->js;  je = pG->je;
-        ks = pG->ks;  ke = pG->ke;
+        is = pG->is;
+        ie = pG->ie;
+        js = pG->js;
+        je = pG->je;
+        ks = pG->ks;
+        ke = pG->ke;
 
         dV = pG->dx1 * pG->dx2 * pG->dx3;
-        for (k=ks; k<=ke; k++) {
-          for (j=js; j<=je; j++) {
-            for (i=is; i<=ie; i++) {
+        for (k = ks; k <= ke; k++)
+        {
+          for (j = js; j <= je; j++)
+          {
+            for (i = is; i <= ie; i++)
+            {
               pG->U[k][j][i].E += Erad_total * dV / V;
             }
           }
@@ -1358,17 +1425,14 @@ static void radiate_energy(MeshS *pM) {
     }
   }
   ath_pout(0, "[radiate_energy] Distributed a total energy of %e in fractional "
-           "volumes of %e.\n", Erad_total, dV / V);
-
+              "volumes of %e.\n",
+           Erad_total, dV / V);
 }
 #endif /* ENERGY_HEATING */
 
-
-
-
 static void test_cooling()
 {
-  int i, j, npts=100;
+  int i, j, npts = 100;
   Real logt, temp, tc, logdt, dt;
   Real err;
   Real dens = 1.0;
@@ -1380,19 +1444,20 @@ static void test_cooling()
 
   /* Now outputting some information from Townsend (2009) */
   outfile = fopen("lambda.dat", "w");
-  for(i=0; i<npts; i++){
-    logt = log(1.0e-4) + (log(5.0)-log(1.0e-4))*((double) i/(npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logt = log(1.0e-4) + (log(5.0) - log(1.0e-4)) * ((double)i / (npts - 1));
     temp = exp(logt);
 
-    fprintf(outfile, "%e\t%e\t%e\n", temp, sdLambda(dens,temp), sdLambda(dens * drat,temp));
+    fprintf(outfile, "%e\t%e\t%e\n", temp, sdLambda(dens, temp), sdLambda(dens * drat, temp));
   }
   fclose(outfile);
 
-
   outfile = fopen("Yk.dat", "w");
-  for(i=0; i<nfit_cool_T; i++) {
+  for (i = 0; i < nfit_cool_T; i++)
+  {
     fprintf(outfile, "%d\t", i);
-    for(j = 0; j < nfit_cool_d; j++)
+    for (j = 0; j < nfit_cool_d; j++)
       fprintf(outfile, "%e\t", Yk[j][i]);
     fprintf(outfile, "\n");
   }
@@ -1402,10 +1467,11 @@ static void test_cooling()
   tc = tcool(1.0, temp);
 
   outfile = fopen("townsend-fig1-10kev.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(1.0, temp, dt));
   }
   fclose(outfile);
 
@@ -1413,11 +1479,12 @@ static void test_cooling()
   tc = tcool(1.0, temp);
 
   outfile = fopen("townsend-fig1-3kev.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
 
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(1.0, temp, dt));
   }
   fclose(outfile);
 
@@ -1425,11 +1492,12 @@ static void test_cooling()
   tc = tcool(1.0, temp);
 
   outfile = fopen("townsend-fig1-1kev.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
 
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(1.0, temp, dt));
   }
   fclose(outfile);
 
@@ -1437,24 +1505,25 @@ static void test_cooling()
   tc = tcool(1.0, temp);
 
   outfile = fopen("townsend-fig1-0.3kev.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
 
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(1.0, temp, dt));
   }
   fclose(outfile);
 
   temp = 0.1;
   tc = tcool(1.0, temp);
 
-
   outfile = fopen("townsend-fig1-0.1kev.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
 
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(1.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(1.0, temp, dt));
   }
   fclose(outfile);
 
@@ -1462,14 +1531,14 @@ static void test_cooling()
   tc = tcool(100.0, temp);
 
   outfile = fopen("townsend-fig1-0.1kev-100.dat", "w");
-  for(i=0; i<npts; i++){
-    logdt = log(0.1) + (log(2.0)-log(0.1))*((double) i / (npts-1));
+  for (i = 0; i < npts; i++)
+  {
+    logdt = log(0.1) + (log(2.0) - log(0.1)) * ((double)i / (npts - 1));
     dt = tc * exp(logdt);
 
-    fprintf(outfile, "%e\t%e\n", dt/tc, newtemp_townsend(100.0, temp, dt));
+    fprintf(outfile, "%e\t%e\n", dt / tc, newtemp_townsend(100.0, temp, dt));
   }
   fclose(outfile);
-
 
   ath_error("check cooling stuff done.\n");
 
@@ -1477,61 +1546,65 @@ static void test_cooling()
 }
 /* end cooling routines */
 /* ================================================================ */
-#endif  /* ENERGY_COOLING */
+#endif /* ENERGY_COOLING */
 
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt)
 {
   /*returns cooling to decrease temperature to initial cloud temperature */
-  Real temp = P/rho;
+  Real temp = P / rho;
   Real tcloud = Gamma_1 / drat;
   Real Edot = 0.0;
   /* cool to tcloud, but no further */
-  if((temp > tcloud) && (temp < 10.*tcloud)){
-    Edot = (temp - tcloud)*rho/dt/Gamma_1;
+  if ((temp > tcloud) && (temp < 10. * tcloud))
+  {
+    Edot = (temp - tcloud) * rho / dt / Gamma_1;
   }
-  //Edot = (temp < tcloud) ? 0.0 : (temp-tcloud)/dt;
-
+  // Edot = (temp < tcloud) ? 0.0 : (temp-tcloud)/dt;
 
   return Edot;
 }
 
-
-
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
 {
   int i, j, k;
-  int is,ie,js,je,ks,ke;
+  int is, ie, js, je, ks, ke;
   Real x1, x2, x3;
-  int V=0; //verbose off
+  int V = 0; // verbose off
   int NO = 2;
   Real KE, rho, press, temp;
 
   GridS *pGrid = pDomain->Grid;
   Real tcloud = Gamma_1 / drat;
-  is = pGrid->is; ie = pGrid->ie;
-  js = pGrid->js; je = pGrid->je;
-  ks = pGrid->ks; ke = pGrid->ke;
+  is = pGrid->is;
+  ie = pGrid->ie;
+  js = pGrid->js;
+  je = pGrid->je;
+  ks = pGrid->ks;
+  ke = pGrid->ke;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = is; i <= ie; i++)
+      {
         rho = pGrid->U[k][j][i].d;
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
         KE = (SQR(pGrid->U[k][j][i].M1) +
               SQR(pGrid->U[k][j][i].M2) +
               SQR(pGrid->U[k][j][i].M3)) /
-          (2.0 * rho);
+             (2.0 * rho);
 
         press = pGrid->U[k][j][i].E - KE;
         press *= Gamma_1;
         temp = press / rho;
 
+        if ((temp > 1.1 * tcloud) && (temp < 10. * tcloud) && (pGrid->U[k][j][i].s[0] >= 0.1))
+        {
+          temp = 1.1 * tcloud;
 
-        if((temp  > 1.1*tcloud) && (temp < 10. * tcloud) && (pGrid->U[k][j][i].s[0] >= 0.1)){
-          temp = 1.1*tcloud;
-
-          pGrid->U[k][j][i].E = temp*rho/Gamma_1 + KE;
+          pGrid->U[k][j][i].E = temp * rho / Gamma_1 + KE;
         }
       }
     }
@@ -1563,33 +1636,40 @@ static Real cloud_mass_weighted_velocity(MeshS *pM)
   nl = (pM->NLevels > 1) ? 1 : 0;
 
   scal[0] = scal[1] = 0.0;
-  for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-    if (pM->Domain[nl][nd].Grid != NULL) {
+  for (nd = 0; nd < (pM->DomainsPerLevel[nl]); nd++)
+  {
+    if (pM->Domain[nl][nd].Grid != NULL)
+    {
 
       pG = pM->Domain[nl][nd].Grid;
-      is = pG->is;  ie = pG->ie;
-      js = pG->js;  je = pG->je;
-      ks = pG->ks;  ke = pG->ke;
+      is = pG->is;
+      ie = pG->ie;
+      js = pG->js;
+      je = pG->je;
+      ks = pG->ks;
+      ke = pG->ke;
 
-      for (k=ks; k<=ke; k++) {
-        for (j=js; j<=je; j++) {
-          for (i=is; i<=ie; i++) {
+      for (k = ks; k <= ke; k++)
+      {
+        for (j = js; j <= je; j++)
+        {
+          for (i = is; i <= ie; i++)
+          {
             d = pG->U[k][j][i].d;
-#if(NSCALARS > 0)
+#if (NSCALARS > 0)
             s = pG->U[k][j][i].s[0];
 #endif
-            cc_pos(pG,i,j,k,&x1,&x2,&x3);
+            cc_pos(pG, i, j, k, &x1, &x2, &x3);
             tmp = s * pG->U[k][j][i].M1 / d;
-            if (tmp == tmp && x1 < 0.0) {
+            if (tmp == tmp && x1 < 0.0)
+            {
 
-              scal[0] += tmp*d;
-              scal[1] += s*d;
+              scal[0] += tmp * d;
+              scal[1] += s * d;
             }
-
           }
         }
       }
-
     }
   }
 
@@ -1604,8 +1684,7 @@ static Real cloud_mass_weighted_velocity(MeshS *pM)
 
   return scal[0] / scal[1];
 }
-#endif  /* FOLLOW_CLOUD */
-
+#endif /* FOLLOW_CLOUD */
 
 #ifdef VISCOSITY
 static Real nu_fun(const Real d, const Real T,
@@ -1621,10 +1700,7 @@ static Real nu_fun(const Real d, const Real T,
 
   /* return newnu; */
 }
-#endif  /* VISCOSITY */
-
-
-
+#endif /* VISCOSITY */
 
 /*==============================================================================
  * HISTORY OUTPUTS:
@@ -1634,37 +1710,34 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-  #ifdef EXPAND_DOMAIN
+#ifdef EXPAND_DOMAIN
   Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
 #else
   Real s = 1.0;
 #endif
-  if(pG->U[k][j][i].d < frac * drat * s)
+  if (pG->U[k][j][i].d < frac * drat * s)
     return 0;
   return pG->U[k][j][i].d;
 }
 
-
 static Real hst_m13(const GridS *pG, const int i, const int j, const int k)
 {
-  return _hst_mcut(pG, i, j, k, 1/3.);
+  return _hst_mcut(pG, i, j, k, 1 / 3.);
 }
 
 static Real hst_mT2(const GridS *pG, const int i, const int j, const int k)
 {
   Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
   const Real Tcl = (Gamma_1 + dp) / drat;
-  if(temp > 2 * Tcl)
+  if (temp > 2 * Tcl)
     return 0;
   return pG->U[k][j][i].d;
 }
-
 
 static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 {
   return _hst_mcut(pG, i, j, k, 0.1);
 }
-
 
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
@@ -1673,7 +1746,7 @@ static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 #else
   Real s = 1.0;
 #endif
-  if(pG->U[k][j][i].d < drat / 3. * s)
+  if (pG->U[k][j][i].d < drat / 3. * s)
     return 0;
   return pG->U[k][j][i].M1;
 }
@@ -1682,7 +1755,6 @@ static Real hst_Erad(const GridS *pG, const int i, const int j, const int k)
 {
   return pG->U[k][j][i].Erad;
 }
-
 
 #ifdef FOLLOW_CLOUD
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k)
@@ -1718,39 +1790,38 @@ static Real hst_cE(const GridS *pG, const int i, const int j, const int k)
 static Real hst_cx1(const GridS *pG, const int i, const int j, const int k)
 {
   Real x1, x2, x3;
-  cc_pos(pG,i,j,k,&x1,&x2,&x3);
+  cc_pos(pG, i, j, k, &x1, &x2, &x3);
   return (pG->U[k][j][i].s[0] * x1);
 }
 
 static Real hst_cvx(const GridS *pG, const int i, const int j, const int k)
 {
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d);
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M1 / pG->U[k][j][i].d);
 }
 
 static Real hst_cvy(const GridS *pG, const int i, const int j, const int k)
 {
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d);
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M2 / pG->U[k][j][i].d);
 }
 
 static Real hst_cvz(const GridS *pG, const int i, const int j, const int k)
 {
-  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d);
+  return (pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 / pG->U[k][j][i].d);
 }
-
 
 static Real hst_cvx_sq(const GridS *pG, const int i, const int j, const int k)
 {
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M1  /  pG->U[k][j][i].d));
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M1 / pG->U[k][j][i].d));
 }
 
 static Real hst_cvy_sq(const GridS *pG, const int i, const int j, const int k)
 {
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M2  /  pG->U[k][j][i].d));
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M2 / pG->U[k][j][i].d));
 }
 
 static Real hst_cvz_sq(const GridS *pG, const int i, const int j, const int k)
 {
-  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 /  pG->U[k][j][i].d));
+  return (SQR(pG->U[k][j][i].s[0] * pG->U[k][j][i].M3 / pG->U[k][j][i].d));
 }
 
 static Real hst_Sdye(const GridS *pG, const int i, const int j, const int k)
@@ -1771,47 +1842,47 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
   Real temp = W.P / W.d;
   Real cs = sqrt(Gamma * temp);
   return cs * tcool(W.d, temp);
-  //return 1.;
+  // return 1.;
 }
 #endif
 
-
-#endif  /* NSCALARS */
-
+#endif /* NSCALARS */
 
 /*==============================================================================
  * BOUNDARY CONDITIONS:
  *
  *----------------------------------------------------------------------------*/
 
-
 static void bc_ix1(GridS *pGrid)
 {
   int is = pGrid->is;
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k;
+  int i, j, k;
   Real presswind = Gamma_1 + dp;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
-        pGrid->U[k][j][is-i] = pGrid->U[k][j][is];
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = 1; i <= nghost; i++)
+      {
+        pGrid->U[k][j][is - i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][i].s[0] = 0.0;
 #endif
 
-        pGrid->U[k][j][is-i].d  = 1.0;
-        pGrid->U[k][j][is-i].M1 = 1.0 * vflow;
-        pGrid->U[k][j][is-i].M2 = 0.0;
-        pGrid->U[k][j][is-i].M3 = 0.0;
-        pGrid->U[k][j][is-i].E  = presswind / Gamma_1 + 0.5*SQR(vflow);
+        pGrid->U[k][j][is - i].d = 1.0;
+        pGrid->U[k][j][is - i].M1 = 1.0 * vflow;
+        pGrid->U[k][j][is - i].M2 = 0.0;
+        pGrid->U[k][j][is - i].M3 = 0.0;
+        pGrid->U[k][j][is - i].E = presswind / Gamma_1 + 0.5 * SQR(vflow);
 
-	if((pGrid->U[k][j][is-i].E < 0) || isnan(pGrid->U[k][j][is-i].E))
-	  ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",
-		    pGrid->U[k][j][is-i].E, pGrid->U[k][j][is-i].M1, pGrid->U[k][j][is-i].M2,
-		    pGrid->U[k][j][is-i].M3, pGrid->U[k][j][is-i].d, k, j, is-i);
+        if ((pGrid->U[k][j][is - i].E < 0) || isnan(pGrid->U[k][j][is - i].E))
+          ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",
+                    pGrid->U[k][j][is - i].E, pGrid->U[k][j][is - i].M1, pGrid->U[k][j][is - i].M2,
+                    pGrid->U[k][j][is - i].M3, pGrid->U[k][j][is - i].d, k, j, is - i);
       }
     }
   }
@@ -1824,24 +1895,29 @@ static void bc_ox1(GridS *pGrid)
   int ie = pGrid->ie;
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k;
-  const int V=0;
-  int NO=10;
+  int i, j, k;
+  const int V = 0;
+  int NO = 10;
 
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=1; i<=nghost; i++) {
+  for (k = ks; k <= ke; k++)
+  {
+    for (j = js; j <= je; j++)
+    {
+      for (i = 1; i <= nghost; i++)
+      {
 
-        pGrid->U[k][j][ie+i] = pGrid->U[k][j][ie];
+        pGrid->U[k][j][ie + i] = pGrid->U[k][j][ie];
 
-        if(pGrid->U[k][j][ie+i].M1 < 0.0){
-          if(V && (NO > 0)) {
+        if (pGrid->U[k][j][ie + i].M1 < 0.0)
+        {
+          if (V && (NO > 0))
+          {
             printf("bc_ox1 %d %d %d %e\n",
-                   i, j, k, pGrid->U[k][j][ie+i].M1);
+                   i, j, k, pGrid->U[k][j][ie + i].M1);
             NO--;
           }
-          pGrid->U[k][j][ie+i].E -= 0.5*SQR(pGrid->U[k][j][ie+i].M1)/pGrid->U[k][j][ie+i].d;
-          pGrid->U[k][j][ie+i].M1 = 0.0;
+          pGrid->U[k][j][ie + i].E -= 0.5 * SQR(pGrid->U[k][j][ie + i].M1) / pGrid->U[k][j][ie + i].d;
+          pGrid->U[k][j][ie + i].M1 = 0.0;
         }
       }
     }
@@ -1850,20 +1926,22 @@ static void bc_ox1(GridS *pGrid)
   return;
 }
 
-
 void add_term(Real3Vect ***A, GridS *pG,
               Real theta, Real phi,
               Real alpha, Real beta, Real amp)
 {
-  int i, j ,k;
+  int i, j, k;
   Real phase;
   Real3Vect e1, e2, e3, kv, r;
 
   int is, ie, ks, ke, js, je;
 
-  is = pG->is; ie = pG->ie;
-  js = pG->js; je = pG->je;
-  ks = pG->ks; ke = pG->ke;
+  is = pG->is;
+  ie = pG->ie;
+  js = pG->js;
+  je = pG->je;
+  ks = pG->ks;
+  ke = pG->ke;
 
   e1 = get_e1(theta, phi);
   e2 = get_e2(theta, phi);
@@ -1887,32 +1965,32 @@ void add_term(Real3Vect ***A, GridS *pG,
   kv.x1 = alpha * e3.x1;
   kv.x2 = alpha * e3.x2;
   kv.x3 = alpha * e3.x3;
-  if(ie+nghost >= (ie-is)+1+2*nghost){
+  if (ie + nghost >= (ie - is) + 1 + 2 * nghost)
+  {
     ath_error("overrunning A array!\n");
   }
 
-
-  for (k=0; k<=ke+nghost; k++) {
-    for (j=0; j<=je+nghost; j++) {
-      for (i=0; i<=ie+nghost; i++) {
+  for (k = 0; k <= ke + nghost; k++)
+  {
+    for (j = 0; j <= je + nghost; j++)
+    {
+      for (i = 0; i <= ie + nghost; i++)
+      {
         cc_pos(pG, i, j, k, &r.x1, &r.x2, &r.x3);
         r.x1 -= 0.5 * pG->dx1;
         r.x2 -= 0.5 * pG->dx2;
         r.x3 -= 0.5 * pG->dx3;
         phase = r.x1 * kv.x1 + r.x2 * kv.x2 + r.x3 * kv.x3 + beta;
 
-        A[k][j][i].x1 += amp * (e2.x1 * cos(phase) + e1.x1 * sin(phase))/alpha;
-        A[k][j][i].x2 += amp * (e2.x2 * cos(phase) + e1.x2 * sin(phase))/alpha;
-        A[k][j][i].x3 += amp * (e2.x3 * cos(phase) + e1.x3 * sin(phase))/alpha;
+        A[k][j][i].x1 += amp * (e2.x1 * cos(phase) + e1.x1 * sin(phase)) / alpha;
+        A[k][j][i].x2 += amp * (e2.x2 * cos(phase) + e1.x2 * sin(phase)) / alpha;
+        A[k][j][i].x3 += amp * (e2.x3 * cos(phase) + e1.x3 * sin(phase)) / alpha;
       }
     }
   }
 
   return;
 }
-
-
-
 
 Real3Vect get_e1(Real theta, Real phi)
 {
@@ -1924,7 +2002,7 @@ Real3Vect get_e1(Real theta, Real phi)
   return ret;
 }
 
-Real3Vect get_e2(__attribute__((unused))Real theta, Real phi)
+Real3Vect get_e2(__attribute__((unused)) Real theta, Real phi)
 {
   Real3Vect ret;
   ret.x1 = 0.0;
@@ -1946,8 +2024,8 @@ Real3Vect get_e3(Real theta, Real phi)
 
 Real randomreal2(Real min, Real max)
 {
-  Real eta = ((Real)rand()/(Real)RAND_MAX);
-  return min + eta * (max-min);
+  Real eta = ((Real)rand() / (Real)RAND_MAX);
+  return min + eta * (max - min);
 }
 
 static Real RandomNormal2(Real mu, Real sigma)
@@ -1958,12 +2036,15 @@ static Real RandomNormal2(Real mu, Real sigma)
   static Real y2;
   static int use_last = 0;
 
-  if (use_last){ /* use value from previous call */
+  if (use_last)
+  { /* use value from previous call */
     y1 = y2;
     use_last = 0;
   }
-  else {
-    do {
+  else
+  {
+    do
+    {
       x1 = randomreal2(-1.0, 1.0);
       x2 = randomreal2(-1.0, 1.0);
       w = x1 * x1 + x2 * x2;
