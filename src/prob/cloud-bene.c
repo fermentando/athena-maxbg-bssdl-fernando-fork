@@ -14,11 +14,10 @@
 #define FOLLOW_CLOUD   // Moving reference frame
 #define REPORT_NANS    // Verbose
 #define ENERGY_COOLING // Cooling
-// #define FLOW_PROFILE       // Uncomment this line for changing v(r), rho(r),...
-// #define EXPAND_DOMAIN        // Expand domain while moving out. Check `expand_domain.h`
 // #define INSTANTCOOL        //Test cooling
 #define ENERGY_HEATING 0 // 0 = no heating, 1 = heat what cooled, 2 = constant heating REMOVED ENERGY_HEATING 2
 // #define SHOCK // shock instead of constant wind
+#define PRINTTEXT
 /* ----------------------------------------- */
 
 #ifdef MPI_PARALLEL
@@ -28,8 +27,8 @@
 #define MPI_RL MPI_FLOAT
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
-       // particles raus
-//  MHD raus
+// particles raus
+// MHD raus
 
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
@@ -156,12 +155,30 @@ static Real get_pressure(ConsS *u)
   return (u->E - E0) * Gamma_1;
 }
 
+#ifdef PRINTTEXT
+ char text[] = "Test";
+#endif
+
 /*==============================================================================
  * INITIAL CONDITION:
  *
  *----------------------------------------------------------------------------*/
+
+#ifdef PRINTTEXT
+
+void printstuff() {
+  printf("%s",text);
+}
+
+
+#endif
+
 void problem(DomainS *pDomain)
 {
+
+#ifdef PRINTTEXT
+  printstuff();
+#endif
   GridS *pGrid = pDomain->Grid;
   int i = 0, j = 0, k = 0;
   int is, ie, js, je, ks, ke;
@@ -299,9 +316,6 @@ void problem(DomainS *pDomain)
   int nreadwrite = 0;
   if ((char)fn_rho[0])
   {
-#ifdef FLOW_PROFILE
-    ath_error("FLOW_PROFILE and grid loading not implemented yet.");
-#endif
     ndim_file[0] = par_geti("problem", "load_grid_ndim_x1");
     ndim_file[1] = par_geti("problem", "load_grid_ndim_x2");
     ndim_file[2] = par_geti("problem", "load_grid_ndim_x3");
@@ -374,8 +388,8 @@ void problem(DomainS *pDomain)
             vx = vflow * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
 #endif
             vx += v_cloud;
-            vx += -(x2 / r_cloud) * v_rot;
-            vy = (x1 / r_cloud) * v_rot;
+            vx += 0.0;
+            vy = 0.0;
 #if (NSCALARS > 0)
             // This line means that the dye does not follow the density in the boundary (dr) region
             if (r < r_cloud)
@@ -428,101 +442,6 @@ void problem(DomainS *pDomain)
     if (nreadwrite != (ndim_file[0] * ndim_file[1] * ndim_file[2]))
       ath_error("Not all cells correctly read in (%d vs %d).", nreadwrite,
                 ndim_file[0] * ndim_file[1] * ndim_file[2]);
-  }
-
-  /* MHD part --> generate tangled magnetic field in cloud */
-  if (tangled)
-  {
-    A = (Real3Vect ***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
-
-    for (k = 0; k < nx3; k++)
-    {
-      for (j = 0; j < nx2; j++)
-      {
-        for (i = 0; i < nx1; i++)
-        {
-          A[k][j][i].x3 = A[k][j][i].x2 = A[k][j][i].x1 = 0.0;
-        }
-      }
-    }
-
-    nterms = par_getd_def("problem", "nterms", 10);
-    alpha = par_getd_def("problem", "alpha", 50.0);
-    for (i = 0; i < nterms; i++)
-    {
-      if (myID_Comm_world == 0)
-      {
-        phi = randomreal2(0.0, 2.0 * PI);
-        theta = acos(2.0 * randomreal2(0.0, 1.0) - 1.0);
-        beta = randomreal2(0.0, 2.0 * PI);
-
-        amp = RandomNormal2(1.0, 0.25);
-      }
-      else
-      {
-        theta = phi = beta = amp = alpha = 0.0;
-      }
-
-#ifdef MPI_PARALLEL
-      my_scal[0] = theta;
-      my_scal[1] = phi;
-      my_scal[2] = beta;
-      my_scal[3] = amp;
-      my_scal[4] = alpha;
-
-      ierr = MPI_Allreduce(&my_scal, &scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-      if (ierr)
-        ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
-
-      theta = scal[0];
-      phi = scal[1];
-      beta = scal[2];
-      amp = scal[3];
-      alpha = scal[4];
-#endif
-
-      add_term(A, pGrid, theta, phi, alpha, beta, amp);
-    } /* end loop over nterms */
-
-    Bin = sqrt(2.0 * (Gamma_1 + dp) / betain);
-
-    for (k = 0; k < nx3; k++)
-    {
-      for (j = 0; j < nx2; j++)
-      {
-        for (i = 0; i < nx1; i++)
-        {
-          A[k][j][i].x1 *= Bin / sqrt(nterms);
-          A[k][j][i].x2 *= Bin / sqrt(nterms);
-          A[k][j][i].x3 *= Bin / sqrt(nterms);
-
-          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          r = sqrt(x1 * x1 + x2 * x2 + x3 * x3);
-          if (r > r_cloud)
-            A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
-        }
-      }
-    }
-
-  } /*end of if(tangled) */
-
-  /* take curl here */
-
-  if (tangled)
-  {
-    free_3d_array((void ***)A);
-  }
-  /* cell-centered magnetic field */
-  /*   derive this from interface field to be internally consistent
-       with athena */
-  for (k = ks; k <= ke; k++)
-  {
-    for (j = js; j <= je; j++)
-    {
-      for (i = is; i <= ie; i++)
-      {
-      }
-    }
   }
 
   if (pDomain->Disp[0] == 0)
@@ -746,12 +665,10 @@ void Userwork_in_loop(MeshS *pM)
     dvx = newdvx;
   }
 
-#ifndef FLOW_PROFILE
   if (vflow - dvx < 0.00)
   { // does not allow vflow < 0
     dvx = vflow;
   }
-#endif /* not FLOW_PROFILE */
   ath_pout(0, "[dvx:]  %0.10e [vflow:] %.10e [xshift:] %.10e\n", dvx, vflow, x_shift);
   vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
@@ -1708,11 +1625,7 @@ static Real nu_fun(const Real d, const Real T,
 
 static Real _hst_mcut(const GridS *pG, const int i, const int j, const int k, const Real frac)
 {
-#ifdef EXPAND_DOMAIN
-  Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
-#else
   Real s = 1.0;
-#endif
   if (pG->U[k][j][i].d < frac * drat * s)
     return 0;
   return pG->U[k][j][i].d;
@@ -1739,11 +1652,7 @@ static Real hst_m110(const GridS *pG, const int i, const int j, const int k)
 
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k)
 {
-#ifdef EXPAND_DOMAIN
-  Real s = pow(scalefac, ed_exp[ed_exp_mode()].rho);
-#else
   Real s = 1.0;
-#endif
   if (pG->U[k][j][i].d < drat / 3. * s)
     return 0;
   return pG->U[k][j][i].M1;
