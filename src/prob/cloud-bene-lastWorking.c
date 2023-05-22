@@ -11,16 +11,15 @@
 #include "prob/math_functions.h"
 
 /* ----------- Define options here --------- */
-#define FOLLOW_CLOUD     // Moving reference frame
-#define REPORT_NANS      // Verbose
-#define ENERGY_COOLING   // Cooling
-#define ENERGY_HEATING 0 // 0 = no heating, 1 = heat what cooled, 2 = constant heating
-//#define PRINTCOOLING
-
+#define FOLLOW_CLOUD   // Moving reference frame
+#define REPORT_NANS    // Verbose
+#define ENERGY_COOLING // Cooling
 // #define INSTANTCOOL        //Test cooling
+#define ENERGY_HEATING 0 // 0 = no heating, 1 = heat what cooled, 2 = constant heating REMOVED ENERGY_HEATING 2
+// #define SHOCK // shock instead of constant wind
+#define PRINTTEXT
 /* ----------------------------------------- */
 
-/* ----------- Parallel options --------- */
 #ifdef MPI_PARALLEL
 #ifdef DOUBLE_PREC
 #define MPI_RL MPI_DOUBLE
@@ -28,21 +27,33 @@
 #define MPI_RL MPI_FLOAT
 #endif /* DOUBLE_PREC */
 #endif /* MPI_PARALLEL */
-/* ----------------------------------------- */
+// particles raus
+// MHD raus
 
-/* ----------- Define variables and functions --------- */
-
-/* Boundary terms*/
 static void bc_ix1(GridS *pGrid);
 static void bc_ox1(GridS *pGrid);
 
 static void check_div_b(GridS *pGrid);
+
+/* add a force-free term to B */
+void add_term(Real3Vect ***A, GridS *pG,
+              Real theta, Real phi,
+              Real alpha, Real beta, Real amp);
+
+Real randomreal2(Real min, Real max);
+static Real RandomNormal2(Real mu, Real sigma);
+
+/* unit vectors */
+Real3Vect get_e1(Real theta, Real phi);
+Real3Vect get_e2(Real theta, Real phi);
+Real3Vect get_e3(Real theta, Real phi);
 
 /* custom hst quantities */
 static Real hst_m13(const GridS *pG, const int i, const int j, const int k);
 static Real hst_m110(const GridS *pG, const int i, const int j, const int k);
 static Real hst_mT2(const GridS *pG, const int i, const int j, const int k);
 static Real hst_Mx13(const GridS *pG, const int i, const int j, const int k);
+
 static Real hst_Erad(const GridS *pG, const int i, const int j, const int k);
 
 /* dye-weighted hst quantities */
@@ -75,8 +86,6 @@ static OutputS nan_dump;
 static int nan_dump_count;
 #endif /* REPORT_NANS */
 
-/* ----------- Cooling functions --------- */
-
 #ifdef ENERGY_COOLING
 /* global definitions for the SD cooling curve using the
    Townsend (2009) exact integration scheme */
@@ -107,16 +116,11 @@ static void radiate_energy(MeshS *pM);
 #endif
 #endif /* ENERGY_COOLING */
 
-#if ENERGY_HEATING == 2 // fixed heating
-static Real heating_rate;
-#endif /* ENERGY_HEATING == 2 */
-
 #ifdef INSTANTCOOL
 static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
 #endif /* INSTANTCOOL */
-/* ----------------------------------------- */
 
 #ifdef FOLLOW_CLOUD
 static Real cloud_mass_weighted_velocity(MeshS *pM);
@@ -124,25 +128,19 @@ static void boost_frame(DomainS *pDomain, Real dv);
 static Real x_shift;
 
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
-static Real hst_v_wind(const GridS *pG, const int i, const int j, const int k);
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k);
 #endif
 
 static Real scalefac = 1.0;
 
-/* ----------- Problem specific variables --------- */
+static Real drat, vflow, vflow0, betain, betaout_y, betaout_z, dr, dp, tnotcool, r_cloud, acc, v_cloud;
 
-static Real drat, dr, r_cloud, acc, v_cloud;
-
-// Newly introduced
-
-static Real v_wind, v_wind0, M_wind, T_cloud, rho_hot, Press, T_ceil_cool, scaling_fac;
-
-//-------------------------------------------------------------
-
-static Real T_floor, T_ceil, rhofloor, betafloor, T_floor_cooling; /* Used in nancheck*/
+static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
 static Real dens_conv;
 
-/* ----------------------------------------- */
+#if ENERGY_HEATING == 2 // fixed heating
+static Real heating_rate;
+#endif /* ENERGY_HEATING == 2 */
 
 static Real dtmin;
 static Real pro(Real r, Real rcloud)
@@ -157,14 +155,30 @@ static Real get_pressure(ConsS *u)
   return (u->E - E0) * Gamma_1;
 }
 
+#ifdef PRINTTEXT
+ char text[] = "Test";
+#endif
+
 /*==============================================================================
  * INITIAL CONDITION:
  *
  *----------------------------------------------------------------------------*/
 
+#ifdef PRINTTEXT
+
+void printstuff() {
+  printf("%s",text);
+}
+
+
+#endif
+
 void problem(DomainS *pDomain)
 {
 
+#ifdef PRINTTEXT
+  printstuff();
+#endif
   GridS *pGrid = pDomain->Grid;
   int i = 0, j = 0, k = 0;
   int is, ie, js, je, ks, ke;
@@ -190,57 +204,44 @@ void problem(DomainS *pDomain)
   Real dye;
 #endif
 
-  /*==============================================================================
-   * Retrieve from input file                                                   */
-
-  drat = par_getd("problem", "drat");              // rho_cold / rho_hot
-  T_cloud = par_getd("problem", "T_cloud");        // Temperature of the cloud
-  rho_hot = par_getd_def("problem", "rho_hot", 1); // set rho_hot default value
-
-  r_cloud = par_getd_def("problem", "r_cloud", 0.25); // size of cloud
-  dr = par_getd_def("problem", "dr", 0.0);            // boundary layer for density profile
-
-  M_wind = par_getd("problem", "M_wind");               // Get the Mach Number of the hot wind
-  v_wind = M_wind * sqrt(drat) * sqrt(Gamma * T_cloud); // Defining speed of the hot wind
-  v_wind0 = v_wind;
-
-  dtmin = par_getd_def("problem", "dtmin", 1.e-7);
-
-  scaling_fac = par_getd("problem", "scaling_fac");
-  
-  Press = T_cloud * drat;
-
-  // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
+  drat = par_getd("problem", "drat");   // rho_cold / rho_hot
+  vflow = par_getd("problem", "vflow"); // TODO: change here for FLOW_PROFILE
+  vflow0 = vflow;
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
-  // v_wind = 0.1 * v_wind;
-  /*==============================================================================
-   * Could be retrieved, but are predefined                                     */
-
+  // vflow = 0.1 * vflow;
 #ifdef FOLLOW_CLOUD
   x_shift = 0.0;
 #endif
-
   acc = par_getd_def("problem", "acceleration", 0.0); // accelerated wind
+  r_cloud = par_getd_def("problem", "r_cloud", 0.25); // size of cloud
   v_cloud = par_getd_def("problem", "v_cloud", 0.0);  // extra cloud velocity
+  dr = par_getd_def("problem", "dr", 0.0);
 
-  T_floor = par_getd_def("problem", "T_floor", 0.01);     // cooling floor.
-                                                          // note that there's another T_floor in the cooling function
-  T_ceil = par_getd_def("problem", "T_ceil", 10. * drat); // no T above this
+  tfloor = par_getd_def("problem", "tfloor", 1.e-2 / drat); // cooling floor.
+                                                            // note that there's another tfloor in the cooling function
+
+  tceil = par_getd_def("problem", "tceil", 100.); // no T above this
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-
-  T_ceil_cool = par_getd_def("problem", "T_ceil_cool", 0.6 * T_cloud * drat); // no cooling above this
-
-  // temp floor in cooling routine. effectively max(T_floor,T_floor_cooling) is
-  // the temperture floor
-  T_floor_cooling = par_getd_def("problem", "T_floor_cooling", T_cloud);
-
+  dtmin = par_getd_def("problem", "dtmin", 1.e-7);
   dens_conv = par_getd_def("problem", "dens_conv", 1.0); // for density
                                                          // dependent cooling
-  /*============================================================================ */
+
+  dp = par_getd_def("problem", "dp", 0.0);              // variation of overall pressure
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0); // no cooling above this
+
+  // temp floor in cooling routine. effectively max(tfloor,tfloor_cooling) is
+  // the temperture floor
+  tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
 #if ENERGY_HEATING == 2                          // fixed heating
   heating_rate = par_getd("problem", "heating"); // fixed heating rate
 #endif                                           /* ENERGY_HEATING == 2 */
+
+#ifdef VISCOSITY
+  nu = par_getd("problem", "nu");
+  NuFun_i = NULL;
+  NuFun_a = nu_fun;
+#endif
 
   iseed = -10;
 #ifdef MPI_PARALLEL
@@ -259,49 +260,6 @@ void problem(DomainS *pDomain)
   /* test_cooling(); */
 #endif
 
-#ifdef PRINTCOOLING
-  Real T_start, T_end, P_const, t_crush, temp_loop;
-
-  T_start = 1;
-  T_end = 20000;
-
-  P_const = T_cloud * drat;
-
-  t_crush = sqrt(drat) * r_cloud / v_wind;
-
-  ath_pout(0, "Data of cooling function with T_cloud=%f, T_hot=%f, t_cc=%f\n", T_cloud, T_cloud * drat, t_crush);
-  ath_pout(0, "Going from 1 to 20.000 in steps of 0.5 Temperature Code Units\n");
-
-  for (k = T_start; k <= T_end; k++)
-  {
-    temp_loop = k;
-    temp_loop *= 0.5;
-    ath_pout(0, "%f\t%f\n", temp_loop, sdLambda(drat, temp_loop));
-  }
-
-  ath_pout(0, "Data of cooling time with T_cloud=%f, T_hot=%f, t_cc=%f, P=%f, rho_cloud=%f", T_cloud, T_cloud * drat, t_crush, T_cloud * drat, drat);
-  T_start = 1;
-  T_end = 20000;
-
-  for (k = T_start; k <= T_end; k++)
-  { 
-    temp_loop = k;
-    temp_loop *= 0.5;
-    ath_pout(0, "%f\t%f\n", temp_loop, temp_loop / (drat * sdLambda(drat, temp_loop)));
-  }
-
-  ath_pout(0, "Data of cooling time Townsend with T_cloud=%f, T_hot=%f, t_cc=%f, P=%f, rho_cloud=%f", T_cloud, T_cloud * drat, t_crush, T_cloud * drat, drat);
-  T_start = 1;
-  T_end = 20000;
-
-  for (k = T_start; k <= T_end; k++)
-  {
-    temp_loop = k;
-    temp_loop *= 0.5;
-    ath_pout(0, "%f\t%f\n", temp_loop, tcool(drat, temp_loop));
-  }
-#endif
-
 #ifdef INSTANTCOOL
   //  CoolingFunc = instant_cool;
 #endif
@@ -316,7 +274,7 @@ void problem(DomainS *pDomain)
 
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift"); // Total shift
-  dump_history_enroll_alt(hst_v_wind, "v_wind");  // Current inflow velocity
+  dump_history_enroll_alt(hst_vflow, "v_flow");   // Current inflow velocity
 #endif
 
 #if (NSCALARS > 0)
@@ -403,48 +361,55 @@ void problem(DomainS *pDomain)
         r = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
 
         // Static inflow
-        rho = rho_hot;
-        vx = v_wind;
+        rho = 1.0;
+        // Fix pressure so that temperature is normed to what it was with drat=1e3
+        // dp = (drat / 1000. - 1.) * Gamma_1; // --> does not keep t_cool constant!
+#ifndef SHOCK
+        vx = vflow;
+#endif
 
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-        if (r < r_cloud)
-        {
-          vx = v_cloud;
-          vy = 0.0;
-          rho *= drat;
-
-#if (NSCALARS > 0)
-          dye = drat; // 1.0;
-#endif
-        }
-        if (dr > 0.0)
-        {
-          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
-          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
-          vx += v_cloud;
-          vx += 0.0;
-          vy = 0.0;
-#if (NSCALARS > 0)
-          // This line means that the dye does not follow the density in the boundary (dr) region
           if (r < r_cloud)
           {
-            dye = rho;
-          }
+            vx = v_cloud;
+            vy = 0.0;
+            rho *= drat;
+            
+#if (NSCALARS > 0)
+            dye = drat; // 1.0;
 #endif
-        }
+          }
+          if (dr > 0.0)
+          {
+            rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
+#ifndef SHOCK
+            vx = vflow * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
+#endif
+            vx += v_cloud;
+            vx += 0.0;
+            vy = 0.0;
+#if (NSCALARS > 0)
+            // This line means that the dye does not follow the density in the boundary (dr) region
+            if (r < r_cloud)
+            {
+              dye = rho;
+            }
+#endif
+          }
 
         /* write values to the grid */
-        pGrid->U[k][j][i].d = rho; // write rho, in case of hot gas =1 otherwise not
+        pGrid->U[k][j][i].d = rho;
         pGrid->U[k][j][i].M1 = rho * vx;
         pGrid->U[k][j][i].M2 = rho * vy;
         pGrid->U[k][j][i].M3 = rho * vz;
 
+        // Defining the pressure implicitly through the "+ 1.0" --> P_init = Gamma - 1
 #ifndef ISOTHERMAL
-        pGrid->U[k][j][i].E = Press / Gamma_1;                            // Thermal energy
-        pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz)); // kinetic energy
-#endif                                                                    /* not ISOTHERMAL */
+        pGrid->U[k][j][i].E = 1.0 + dp / Gamma_1;
+        pGrid->U[k][j][i].E += 0.5 * rho * (SQR(vx) + SQR(vy) + SQR(vz));
+#endif /* not ISOTHERMAL */
 
 #if (NSCALARS > 0)
         pGrid->U[k][j][i].s[0] = dye;
@@ -458,26 +423,16 @@ void problem(DomainS *pDomain)
   } /* end grid loops */
 
   // Some info printed
-
-  Real t_cc, t_cool_cl, t_cool_hot, t_cool_mix, cool_mix_cc;
-
-  t_cc = sqrt(drat) * r_cloud / v_wind;                           // Cloud crushing time
-  t_cool_cl = tcool(drat, T_cloud);                               // Cloud cooling time
-  t_cool_hot = tcool(rho_hot, drat * T_cloud);                    // Cooling time of hot gas
-  t_cool_mix = tcool(rho_hot * sqrt(drat), sqrt(drat) * T_cloud); // Cooling time of mixed gas
-  cool_mix_cc = t_cool_mix / t_cc;                                // Ration of cool,mix over cc
-
-  ath_pout(0, "[init_problem] t_cc = %g, t_cool,cl = %g, T_cloud = %g, t_cool,mix = %g, t_cool,hot = %g, t_cool,mix/t_cc = %g\n",
-           t_cc,
+  ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
+           sqrt(drat) * r_cloud / vflow,
 #ifdef ENERGY_COOLING
-           t_cool_cl,
+           tcool(drat, (Gamma_1 + dp) / drat),
 #else
            -1, -1
 #endif
-           T_cloud,
-           t_cool_mix,
-           t_cool_hot,
-           cool_mix_cc);
+           (Gamma_1 + dp) / drat,
+           tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
+           tcool(1., drat *(Gamma_1 + dp)));
 
   // close file if ICs are read from file
   if (fp_rho != NULL)
@@ -513,7 +468,7 @@ void problem(DomainS *pDomain)
 
 #if ENERGY_HEATING == 2
   ath_pout(0, "Heating mode is enabled with rate %.5e (Lambda(rho_cl,T_cl) = %e).\n",
-           heating_rate, sdLambda(drat, T_cloud));
+           heating_rate, sdLambda(drat, (Gamma_1 + dp) / drat));
 #endif
 
   return;
@@ -534,8 +489,9 @@ void problem_write_restart(MeshS *pM, FILE *fp)
 {
 #ifdef FOLLOW_CLOUD
   fwrite(&x_shift, sizeof(Real), 1, fp);
-  fwrite(&v_wind, sizeof(Real), 1, fp);
+  fwrite(&vflow, sizeof(Real), 1, fp);
 #endif
+
   return;
 }
 
@@ -554,52 +510,33 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     }
   }
 
-  /*==============================================================================
-   * Retrieve from input file                                                   */
+  drat = par_getd("problem", "drat");
+  vflow = par_getd("problem", "vflow");
+  vflow0 = vflow;
 
-  drat = par_getd("problem", "drat");              // rho_cold / rho_hot
-  T_cloud = par_getd("problem", "T_cloud");        // Temperature of the cloud
-  rho_hot = par_getd_def("problem", "rho_hot", 1); // set rho_hot default value
+  acc = par_getd_def("problem", "acceleration", 0.0);
 
-  r_cloud = par_getd_def("problem", "r_cloud", 0.25); // size of cloud
-  dr = par_getd_def("problem", "dr", 0.0);            // boundary layer for density profile
-
-  M_wind = par_getd("problem", "M_wind");               // Get the Mach Number of the hot wind
-  v_wind = M_wind * sqrt(drat) * sqrt(Gamma * T_cloud); // Defining speed of the hot wind
-  v_wind0 = v_wind;
-
+  tfloor = par_getd_def("problem", "tfloor", 1.e-2 / drat);
+  tceil = par_getd_def("problem", "tceil", 100.);
+  rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
-  scaling_fac = par_getd("problem", "scaling_fac");
 
-  Press = T_cloud * drat;
-
-  // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
-  /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
-  // v_wind = 0.1 * v_wind;
-  /*==============================================================================
-   * Could be retrieved, but are predefined                                     */
-
-#ifdef FOLLOW_CLOUD
-  x_shift = 0.0;
+#ifdef MHD
+  betain = par_getd("problem", "betain");
+  betaout_y = par_getd_def("problem", "betaout_y", 1e20);
+  betaout_z = par_getd("problem", "betaout_z");
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
 #endif
 
-  acc = par_getd_def("problem", "acceleration", 0.0); // accelerated wind
-  v_cloud = par_getd_def("problem", "v_cloud", 0.0);  // extra cloud velocity
+  dp = par_getd_def("problem", "dp", 0.0);
+  tnotcool = par_getd_def("problem", "tnotcool", -1.0);
+  tfloor_cooling = par_getd_def("problem", "tfloor_cooling", (Gamma_1 + dp) / drat);
 
-  T_floor = par_getd_def("problem", "T_floor", 0.01);     // cooling floor.
-                                                          // note that there's another T_floor in the cooling function
-  T_ceil = par_getd_def("problem", "T_ceil", 10. * drat); // no T above this
-  rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
-
-  T_ceil_cool = par_getd_def("problem", "T_ceil_cool", 10); // no cooling above this
-
-  // temp floor in cooling routine. effectively max(T_floor,T_floor_cooling) is
-  // the temperture floor
-  T_floor_cooling = par_getd_def("problem", "T_floor_cooling", T_cloud);
-
-  dens_conv = par_getd_def("problem", "dens_conv", 1.0); // for density
-                                                         // dependent cooling
-  /*============================================================================ */
+#ifdef VISCOSITY
+  nu = par_getd("problem", "nu");
+  NuFun_i = NULL;
+  NuFun_a = nu_fun;
+#endif
 
 #ifdef ENERGY_COOLING
   init_cooling();
@@ -619,7 +556,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 
 #ifdef FOLLOW_CLOUD
   dump_history_enroll_alt(hst_xshift, "x_shift");
-  dump_history_enroll_alt(hst_v_wind, "v_wind");
+  dump_history_enroll_alt(hst_vflow, "v_flow");
 #endif
 
 #if (NSCALARS > 0)
@@ -648,7 +585,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   /* DANGER: make sure the order here matches the order in write_restart() */
 #ifdef FOLLOW_CLOUD
   fread(&x_shift, sizeof(Real), 1, fp);
-  fread(&v_wind, sizeof(Real), 1, fp);
+  fread(&vflow, sizeof(Real), 1, fp);
 #endif
   return;
 }
@@ -728,12 +665,12 @@ void Userwork_in_loop(MeshS *pM)
     dvx = newdvx;
   }
 
-  if (v_wind - dvx < 0.00)
-  { // does not allow v_wind < 0
-    dvx = v_wind;
+  if (vflow - dvx < 0.00)
+  { // does not allow vflow < 0
+    dvx = vflow;
   }
-  ath_pout(0, "[dvx:]  %0.10e [v_wind:] %.10e [xshift:] %.10e\n", dvx, v_wind, x_shift);
-  v_wind -= dvx;
+  ath_pout(0, "[dvx:]  %0.10e [vflow:] %.10e [xshift:] %.10e\n", dvx, vflow, x_shift);
+  vflow -= dvx;
 #endif /* FOLLOW_CLOUD */
 
   for (nl = 0; nl <= (pM->NLevels) - 1; nl++)
@@ -776,7 +713,7 @@ void Userwork_in_loop(MeshS *pM)
 #endif
 
   // Accelerate
-  v_wind += acc * pM->dt;
+  vflow += acc * pM->dt;
 
   if (pM->dt < dtmin)
   {
@@ -840,7 +777,7 @@ static void boost_frame(DomainS *pDomain, Real dvx)
   }
 
   //  x_shift -= dvx * pDomain->Grid->dt;
-  x_shift -= v_wind * pDomain->Grid->dt;
+  x_shift -= vflow * pDomain->Grid->dt;
   return;
 }
 #endif /* FOLLOW_CLOUD */
@@ -864,8 +801,8 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
   int ierr;
 #endif
 
-  /*Real T_floor    = 1.0e-2 / drat;
-  Real T_ceil     = 100.0;
+  /*Real tfloor    = 1.0e-2 / drat;
+  Real tceil     = 100.0;
   Real rhofloor  = 1.0e-2;
   Real betafloor = 3.0e-3;
   */
@@ -902,23 +839,23 @@ static int report_nans(MeshS *pM, DomainS *pDomain, int fix)
           if (V && nanpress < NO)
             printf("bad press %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", press, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
           if (fix)
-            temp = T_floor;
+            temp = tfloor;
         }
-        else if (temp < T_floor)
+        else if (temp < tfloor)
         {
           npress++;
           if (V && npress < NO)
             printf("bad tempF %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", temp, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
           if (fix)
-            temp = T_floor;
+            temp = tfloor;
         }
-        else if (temp > T_ceil && beta > 10.0 * betafloor)
+        else if (temp > tceil && beta > 10.0 * betafloor)
         {
           npress++;
           if (V && npress < NO)
             printf("bad tempC %e R %e  %e %e %e  %d %d %d %e %e %e %e\n", temp, 1.0 / pGrid->dx1, x1, x2, x3, i, j, k, rho, press, temp, beta);
           if (fix)
-            temp = T_ceil;
+            temp = tceil;
         }
 
         if (rho != rho)
@@ -1042,19 +979,17 @@ static void init_cooling()
   Real term;
   const Real mu = 0.62, mu_e = 1.17;
 
-  const Real conv_fac = 8.61e-4; // conversion from 1e4 K to KeV !!!!!!!
-
   /* convert T in the cooling function from keV to code units */
   for (k = 0; k <= n; k++)
   {
-    sdT[k] /= conv_fac;
+    sdT[k] /= (8.197 * mu);
     if (sdT[k] <= 0)
       ath_error("sdT[%d]=%e. Has to be > 0.", k, sdT[k]);
   }
 
-  if (T_floor_cooling < sdT[0])
+  if (tfloor_cooling < sdT[0])
     ath_error("Cooling floor is smaller than first entry of cooling function (%e vs %e).",
-              T_floor_cooling, sdT[0]);
+              tfloor_cooling, sdT[0]);
 
   /* populate Yk following equation A6 in Townsend (2009) */
   for (i = 0; i < nfit_cool_d; i++)
@@ -1081,17 +1016,12 @@ static void init_cooling()
 }
 
 /* piecewise power-law fit to the cooling curve with temperature in
-   keV and L in 1e-23 erg cm^3 / s
-   T can be handed over in code units, conversion has been done in init_cooling
-
-   */
+   keV and L in 1e-23 erg cm^3 / s */
 static Real sdLambda(const Real d0, const Real T)
 {
   int iT, id; // bin indices for T,d
   Real L1, L2;
-  const Real conv_fac = scaling_fac; // from units of 1e-23 erg cm^3 /s to code units.
-
-  // const Real conv_fac = 1.311e-5; // from units of 1e-23 erg cm^3 /s to code units.
+  const Real conv_fac = 1.311e-5; // from units of 1e-23 erg cm^3 /s to code units.
   const Real d = d0 * dens_conv;
   int interpolate = (nfit_cool_d > 1);
 
@@ -1183,7 +1113,7 @@ static Real Yinv(const Real Y1, const int id)
   for (iT = nT; iT > 0; iT--)
   {                           // use iT>0 instead of iT>=0 to force min(iT)=0
     if (Y(sdT[iT], id) >= Y1) // this means that newT<sdT[0] are wrong
-      break;                  // but since we have T_floor>sdT[0] we're good.
+      break;                  // but since we have Tfloor>sdT[0] we're good.
   }
 
   /* calculate Yinv using equation A7 in Townsend (2009) */
@@ -1214,8 +1144,8 @@ static Real newtemp_townsend(const Real d0, const Real T, const Real dt_hydro)
   const Real d = d0 * dens_conv;
   int interpolate = nfit_cool_d > 1;
 
-  if (T <= T_floor_cooling)
-    return T_floor_cooling;
+  if (T <= tfloor_cooling)
+    return tfloor_cooling;
 
   Tref = sdT[nfit_cool_T - 1];
   dref = sdd[nfit_cool_d - 1] / dens_conv;
@@ -1267,7 +1197,7 @@ static void integrate_cooling(GridS *pG)
 
   PrimS W;
   ConsS U;
-  // Changed this for T_floor!!
+  // Changed this for tfloor!!
   Real temp, tempold, heat;
 
   /* ath_pout(0, "integrating cooling using Townsend (2009) algorithm.\n"); */
@@ -1289,18 +1219,19 @@ static void integrate_cooling(GridS *pG)
         W = Cons_to_Prim(&(pG->U[k][j][i]));
         pG->U[k][j][i].Erad = 0;
 
+        /* find temp in keV */
         temp = W.P / W.d;
         tempold = temp;
 
         /* do not cool above a certain threshold */
-        if ((T_ceil_cool > 0) && (temp > T_ceil_cool))
+        if ((tnotcool > 0) && (temp > tnotcool))
           continue;
 
         temp = newtemp_townsend(W.d, temp, pG->dt);
 
         /* apply a temperature floor (nans tolerated) */
-        if (isnan(temp) || temp < T_floor_cooling)
-          temp = T_floor_cooling;
+        if (isnan(temp) || temp < tfloor_cooling)
+          temp = tfloor_cooling;
 
         W.P = W.d * temp;
         U = Prim_to_Cons(&W);
@@ -1346,8 +1277,8 @@ static void radiate_energy(MeshS *pM)
       if (pM->Domain[nl][nd].Grid != NULL)
       {
         pG = pM->Domain[nl][nd].Grid;
-        ath_poutfor
-            is = pG->is;
+
+        is = pG->is;
         ie = pG->ie;
         js = pG->js;
         je = pG->je;
@@ -1559,7 +1490,7 @@ static int after_cool(MeshS *pM, DomainS *pDomain, int fix)
   Real KE, rho, press, temp;
 
   GridS *pGrid = pDomain->Grid;
-  Real tcloud = T_cloud;
+  Real tcloud = Gamma_1 / drat;
   is = pGrid->is;
   ie = pGrid->ie;
   js = pGrid->js;
@@ -1670,6 +1601,22 @@ static Real cloud_mass_weighted_velocity(MeshS *pM)
 }
 #endif /* FOLLOW_CLOUD */
 
+#ifdef VISCOSITY
+static Real nu_fun(const Real d, const Real T,
+                   const Real x1, const Real x2, const Real x3)
+{
+  Real newnu;
+  return nu;
+  /* newnu = nu*pow(T*1.5,2.5); */
+  /* if(newnu != newnu || newnu < 0.0) */
+  /*   newnu = TINY_NUMBER; */
+  /* if(newnu > 3.*nu) */
+  /*   newnu = 3.*nu; */
+
+  /* return newnu; */
+}
+#endif /* VISCOSITY */
+
 /*==============================================================================
  * HISTORY OUTPUTS:
  *
@@ -1692,7 +1639,7 @@ static Real hst_m13(const GridS *pG, const int i, const int j, const int k)
 static Real hst_mT2(const GridS *pG, const int i, const int j, const int k)
 {
   Real temp = get_pressure(&(pG->U[k][j][i])) / pG->U[k][j][i].d;
-  const Real Tcl = T_cloud;
+  const Real Tcl = (Gamma_1 + dp) / drat;
   if (temp > 2 * Tcl)
     return 0;
   return pG->U[k][j][i].d;
@@ -1724,9 +1671,9 @@ static Real hst_xshift(const GridS *pG, const int i, const int j, const int k)
 #endif
 
 #ifdef FOLLOW_CLOUD
-static Real hst_v_wind(const GridS *pG, const int i, const int j, const int k)
+static Real hst_vflow(const GridS *pG, const int i, const int j, const int k)
 {
-  return v_wind;
+  return vflow;
 }
 #endif
 
@@ -1819,7 +1766,7 @@ static void bc_ix1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i, j, k;
-  Real presswind = T_cloud * drat;
+  Real presswind = Gamma_1 + dp;
 
   for (k = ks; k <= ke; k++)
   {
@@ -1834,10 +1781,10 @@ static void bc_ix1(GridS *pGrid)
 #endif
 
         pGrid->U[k][j][is - i].d = 1.0;
-        pGrid->U[k][j][is - i].M1 = 1.0 * v_wind;
+        pGrid->U[k][j][is - i].M1 = 1.0 * vflow;
         pGrid->U[k][j][is - i].M2 = 0.0;
         pGrid->U[k][j][is - i].M3 = 0.0;
-        pGrid->U[k][j][is - i].E = presswind / Gamma_1 + 0.5 * SQR(v_wind);
+        pGrid->U[k][j][is - i].E = presswind / Gamma_1 + 0.5 * SQR(vflow);
 
         if ((pGrid->U[k][j][is - i].E < 0) || isnan(pGrid->U[k][j][is - i].E))
           ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",

@@ -228,7 +228,7 @@ void problem(DomainS *pDomain)
   T_ceil = par_getd_def("problem", "T_ceil", 10. * drat); // no T above this
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
 
-  T_ceil_cool = par_getd_def("problem", "T_ceil_cool", 0.6 * T_cloud * drat); // no cooling above this
+  T_ceil_cool = par_getd_def("problem", "T_ceil_cool", 10); // no cooling above this
 
   // temp floor in cooling routine. effectively max(T_floor,T_floor_cooling) is
   // the temperture floor

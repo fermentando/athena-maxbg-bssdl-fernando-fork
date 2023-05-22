@@ -9,6 +9,7 @@
 #include "globals.h"
 #include "prototypes.h"
 #include "prob/math_functions.h"
+#include <stdbool.h>
 
 /* ----------- Define options here --------- */
 #define FOLLOW_CLOUD     // Moving reference frame
@@ -210,6 +211,8 @@ void problem(DomainS *pDomain)
   
   Press = T_cloud * drat;
 
+  Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
+
   // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
   // v_wind = 0.1 * v_wind;
@@ -389,6 +392,12 @@ void problem(DomainS *pDomain)
   int iprint = 0;
   vx = vy = vz = 0.0;
 
+  int m,arrsize;
+  float d; 
+  arrsize = sizeof(centerpos)/sizeof(centerpos[0]);
+
+  bool inCloud = false;
+
   /* Begin cell loop */
   for (k = ks; k <= ke; k++)
   {
@@ -399,17 +408,32 @@ void problem(DomainS *pDomain)
         // Convert (i,j,k) to real space (x1,x2,x3)
         cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
 
+/* old Radius Implementation
+
         // Compute radius in cloud
         r = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
 
-        // Static inflow
-        rho = rho_hot;
-        vx = v_wind;
+*/
+    inCloud = false;
+
+    for (m=0; m < 3; m++)
+    {
+      d = sqrt((x1 - centerpos[m][0])*(x1 - centerpos[m][0])+(x2 - centerpos[m][1])*(x2 - centerpos[m][1])+(x3 - centerpos[m][2])*(x3 - centerpos[m][2]));
+
+      if(d < r_cloud){
+        inCloud = true;
+        break;
+      } 
+    }
+  
+    // Static inflow
+    rho = rho_hot;
+    vx = v_wind;
 
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-        if (r < r_cloud)
+        if (inCloud == true)
         {
           vx = v_cloud;
           vy = 0.0;
@@ -421,14 +445,14 @@ void problem(DomainS *pDomain)
         }
         if (dr > 0.0)
         {
-          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
-          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
+          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - d) / (dr * r_cloud))));
+          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + d) / (dr * r_cloud))) / rho;
           vx += v_cloud;
           vx += 0.0;
           vy = 0.0;
 #if (NSCALARS > 0)
           // This line means that the dye does not follow the density in the boundary (dr) region
-          if (r < r_cloud)
+          if (inCloud == true)
           {
             dye = rho;
           }

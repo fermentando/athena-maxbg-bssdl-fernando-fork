@@ -23,8 +23,8 @@ tlim            = 950.0
 
 <domain1>
 NGrid_x1        = 10
-NGrid_x2        = 2
-NGrid_x3        = 2
+NGrid_x2        = 1
+NGrid_x3        = 1
 Nx1             = 480.0
 Nx2             = 96.0
 Nx3             = 96.0
@@ -43,16 +43,21 @@ x3min           = -15.0
 
 <problem>
 # Defined by physics
-gamma           = 1.66666666667
+gamma           = 1.66666666667 #Adiabatic exponent
 
-#Defined by user
-r_cloud         = 2.5 # radius of cloud
-tnotcool        = 0.04 # switch off cooling above this T
-vflow           = 0.5 # flow speed
-drat            = 100.0 # density ratio
-dr              = 0.046875 # border of cloud in units of r_cl
-dp              = -0.6 # sets global pressure. P = Gamma - 1 + dp
+# Remaining static, predefined by Max
+dr              = 0.046875      # border of cloud in units of r_cl
 dtmin           = 1e-09 
 
+#Defined by user 
+r_cloud         = 2.5           # radius of cloud
+drat            = 100.0         # density ratio
+T_cloud         = 1             # in units of 10^4 K
+M_wind          = 1.5           # Mach Number of hot wind
+T_ceil_cool     = 100           # switch off cooling above this T in units of 10^4 K
+
+#Deprecated
+#dp              = -0.6 # sets global pressure. P = Gamma - 1 + dp
+#vflow           = 0.5 # flow speed
 
 <par_end>
