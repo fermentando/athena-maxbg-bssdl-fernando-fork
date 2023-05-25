@@ -421,16 +421,14 @@ void problem(DomainS *pDomain)
         }
         if (dr > 0.0)
         {
-          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
-          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud))) / rho;
-          vx += v_cloud;
-          vx += 0.0;
+          rho = (rho_hot + (drat - 1) * 0.5 * rho_hot * (1.0 + tanh((r_cloud - r) / (dr * r_cloud))));
+          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + r) / (dr * r_cloud)));
           vy = 0.0;
 #if (NSCALARS > 0)
-          // This line means that the dye does not follow the density in the boundary (dr) region
           if (r < r_cloud)
           {
-            dye = rho;
+            vx += v_cloud;
+            dye = drat;
           }
 #endif
         }
