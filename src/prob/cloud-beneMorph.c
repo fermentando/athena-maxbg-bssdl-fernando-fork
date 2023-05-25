@@ -1,5 +1,6 @@
 #include "copyright.h"
 #include <float.h>
+#include <string.h>
 #include <math.h>
 #include <stdio.h>
 #include <assert.h>
@@ -17,6 +18,7 @@
 #define ENERGY_COOLING   // Cooling
 #define ENERGY_HEATING 0 // 0 = no heating, 1 = heat what cooled, 2 = constant heating
 //#define PRINTCOOLING
+#define INPUTFILE         // Reads centerpositions of clouds from a file in the same directory
 
 // #define INSTANTCOOL        //Test cooling
 /* ----------------------------------------- */
@@ -117,6 +119,7 @@ static Real instant_cool(const Real rho, const Real P, const Real dt);
 static int after_cool(MeshS *pM, DomainS *pDomain, int fix);
 static Real hst_xshift(const GridS *pG, const int i, const int j, const int k);
 #endif /* INSTANTCOOL */
+
 /* ----------------------------------------- */
 
 #ifdef FOLLOW_CLOUD
@@ -211,7 +214,10 @@ void problem(DomainS *pDomain)
   
   Press = T_cloud * drat;
 
-  Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
+  //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
+
+  char *filename = par_gets_def("problem", "centerpos","");
+  ath_pout(0, "%s", filename);
 
   // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
@@ -304,6 +310,80 @@ void problem(DomainS *pDomain)
     ath_pout(0, "%f\t%f\n", temp_loop, tcool(drat, temp_loop));
   }
 #endif
+
+#ifdef INPUTFILE
+
+#define COLUMNS 3
+
+  int getSize(char *filename)
+  {
+    FILE *file;
+
+    file = fopen(filename, "r");
+    if (file == NULL)
+    {
+      ath_pout(0, "Error opening the file.\n Setting centerpos to default 0,0,0\n");
+      Real centerpos[1][3] = {{0,0,0}};
+    }
+
+    int linecount = 1;
+    char c;
+
+    do
+    {
+      c = fgetc(file);
+      if (c == '\n')
+        linecount++;
+    } while (c != EOF);
+
+    fclose(file);
+
+    return linecount;
+  }
+  
+  FILE *file;
+
+  int rows;
+
+  rows = getSize(filename);
+  float centerpos[rows][COLUMNS];
+
+  file = fopen(filename, "r");
+
+  while (!feof(file))
+  {
+    if (ferror(file))
+    {
+      ath_pout(0, "Error opening the file.\n Setting centerpos to default 0,0,0\n");
+      Real centerpos[1][3] = {{0,0,0}};
+    }
+    for (int j = 0; j < rows; j++)
+    {
+      for (int i = 0; i < 3; i++)
+      {
+        if (fscanf(file, "%f", &centerpos[j][i]) == EOF)
+          break;
+      }
+    }
+  }
+  fclose(file);
+
+  ath_pout(0, "Contents of the array:\n");
+
+  for (int i = 0; i < rows; i++)
+  {
+    for (int j = 0; j < COLUMNS; j++)
+      ath_pout(0, "%f ", centerpos[i][j]);
+    printf("\n");
+  }
+
+#else
+
+  Real centerpos[1][3] = {{0,0,0}};
+
+#endif
+
+
 
 #ifdef INSTANTCOOL
   //  CoolingFunc = instant_cool;
