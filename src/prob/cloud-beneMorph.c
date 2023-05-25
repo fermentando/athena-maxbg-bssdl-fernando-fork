@@ -217,7 +217,7 @@ void problem(DomainS *pDomain)
   //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
 
   char *filename = par_gets_def("problem", "centerpos","");
-  ath_pout(0, "%s", filename);
+  ath_pout(0, "%s\n", filename);
 
   // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
@@ -313,8 +313,6 @@ void problem(DomainS *pDomain)
 
 #ifdef INPUTFILE
 
-#define COLUMNS 3
-
   int getSize(char *filename)
   {
     FILE *file;
@@ -322,8 +320,7 @@ void problem(DomainS *pDomain)
     file = fopen(filename, "r");
     if (file == NULL)
     {
-      ath_pout(0, "Error opening the file.\n Setting centerpos to default 0,0,0\n");
-      Real centerpos[1][3] = {{0,0,0}};
+      ath_error("Error opening the file.\n");
     }
 
     int linecount = 1;
@@ -346,7 +343,7 @@ void problem(DomainS *pDomain)
   int rows;
 
   rows = getSize(filename);
-  float centerpos[rows][COLUMNS];
+  float centerpos[rows][3];
 
   file = fopen(filename, "r");
 
@@ -354,8 +351,7 @@ void problem(DomainS *pDomain)
   {
     if (ferror(file))
     {
-      ath_pout(0, "Error opening the file.\n Setting centerpos to default 0,0,0\n");
-      Real centerpos[1][3] = {{0,0,0}};
+      ath_error("Error opening the file.\n");
     }
     for (int j = 0; j < rows; j++)
     {
@@ -372,14 +368,10 @@ void problem(DomainS *pDomain)
 
   for (int i = 0; i < rows; i++)
   {
-    for (int j = 0; j < COLUMNS; j++)
+    for (int j = 0; j < 3; j++)
       ath_pout(0, "%f ", centerpos[i][j]);
     printf("\n");
   }
-
-#else
-
-  Real centerpos[1][3] = {{0,0,0}};
 
 #endif
 
@@ -496,7 +488,9 @@ void problem(DomainS *pDomain)
 */
     inCloud = false;
 
-    for (m=0; m < 3; m++)
+#ifdef INPUTFILE
+
+    for (m=0; m < rows; m++)
     {
       d = sqrt((x1 - centerpos[m][0])*(x1 - centerpos[m][0])+(x2 - centerpos[m][1])*(x2 - centerpos[m][1])+(x3 - centerpos[m][2])*(x3 - centerpos[m][2]));
 
@@ -505,7 +499,17 @@ void problem(DomainS *pDomain)
         break;
       } 
     }
-  
+#endif
+
+#ifndef INPUTFILE
+      d = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
+
+      if (d < r_cloud){
+        inCloud = true;
+      }
+
+#endif  
+
     // Static inflow
     rho = rho_hot;
     vx = v_wind;
@@ -525,16 +529,14 @@ void problem(DomainS *pDomain)
         }
         if (dr > 0.0)
         {
-          rho = (1.0 + drat * 0.5 * (1.0 + tanh((r_cloud - d) / (dr * r_cloud))));
-          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + d) / (dr * r_cloud))) / rho;
-          vx += v_cloud;
-          vx += 0.0;
+          rho = (rho_hot + (drat - 1) * 0.5 * rho_hot * (1.0 + tanh((r_cloud - d) / (dr * r_cloud))));
+          vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + d) / (dr * r_cloud)));
           vy = 0.0;
 #if (NSCALARS > 0)
-          // This line means that the dye does not follow the density in the boundary (dr) region
           if (inCloud == true)
           {
-            dye = rho;
+            vx += v_cloud;
+            dye = drat;
           }
 #endif
         }
@@ -676,6 +678,11 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   scaling_fac = par_getd("problem", "scaling_fac");
 
   Press = T_cloud * drat;
+
+  //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
+
+  char *filename = par_gets_def("problem", "centerpos","");
+  ath_pout(0, "%s", filename);
 
   // v_wind = par_getd("problem", "v_wind"); // TODO: change here for FLOW_PROFILE
   /* Uncomment this for constantly outflowing (fully entrained / comoving) test */
