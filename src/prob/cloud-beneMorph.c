@@ -466,9 +466,9 @@ void problem(DomainS *pDomain)
 
   int m,arrsize;
   float d; 
+  float d_init;
+  float d_temp;
   arrsize = sizeof(centerpos)/sizeof(centerpos[0]);
-
-  bool inCloud = false;
 
   /* Begin cell loop */
   for (k = ks; k <= ke; k++)
@@ -486,27 +486,26 @@ void problem(DomainS *pDomain)
         r = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
 
 */
-    inCloud = false;
 
 #ifdef INPUTFILE
+    d_init = sqrt((x1 - centerpos[0][0])*(x1 - centerpos[0][0])+(x2 - centerpos[0][1])*(x2 - centerpos[0][1])+(x3 - centerpos[0][2])*(x3 - centerpos[0][2]));
 
-    for (m=0; m < rows; m++)
+    for (m=1; m < rows; m++)
     {
-      d = sqrt((x1 - centerpos[m][0])*(x1 - centerpos[m][0])+(x2 - centerpos[m][1])*(x2 - centerpos[m][1])+(x3 - centerpos[m][2])*(x3 - centerpos[m][2]));
+      d_temp = sqrt((x1 - centerpos[m][0])*(x1 - centerpos[m][0])+(x2 - centerpos[m][1])*(x2 - centerpos[m][1])+(x3 - centerpos[m][2])*(x3 - centerpos[m][2]));
 
-      if(d < r_cloud){
-        inCloud = true;
-        break;
-      } 
+      if(d_temp<d_init){
+        d_init = d_temp;
+      }
+
     }
+
+    d = d_init;
+
 #endif
 
 #ifndef INPUTFILE
       d = sqrt(x1 * x1 + x2 * x2 + x3 * x3); // spherical
-
-      if (d < r_cloud){
-        inCloud = true;
-      }
 
 #endif  
 
@@ -517,7 +516,7 @@ void problem(DomainS *pDomain)
 #if (NSCALARS > 0)
         dye = 0.0;
 #endif
-        if (inCloud == true)
+        if (d < r_cloud)
         {
           vx = v_cloud;
           vy = 0.0;
@@ -533,7 +532,7 @@ void problem(DomainS *pDomain)
           vx = v_wind * 0.5 * (1.0 + tanh((-(1.0 + dr) * r_cloud + d) / (dr * r_cloud)));
           vy = 0.0;
 #if (NSCALARS > 0)
-          if (inCloud == true)
+          if (d < r_cloud)
           {
             vx += v_cloud;
             dye = drat;

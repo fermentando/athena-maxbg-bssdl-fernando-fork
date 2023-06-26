@@ -1,0 +1,60 @@
+<job>
+maxout          = 3.0
+num_domains     = 1.0
+problem_id      = cloud
+
+<output1>
+dt              = 0.5
+out_fmt         = hst
+
+<output2>
+dt              = 1.0
+out             = prim
+out_fmt         = vtk
+
+<output3>
+dt              = 10.0
+out_fmt         = rst
+
+<time>
+cour_no         = 0.3
+nlim            = 2000000.0
+tlim            = 950.0
+
+<domain1>
+NGrid_x1        = 10
+NGrid_x2        = 2
+NGrid_x3        = 2
+Nx1             = 480.0
+Nx2             = 96.0
+Nx3             = 96.0
+bc_ix2          = 2
+bc_ix3          = 2
+bc_ox1          = 2.0
+bc_ox2          = 2
+bc_ox3          = 2
+level           = 0.0
+x1max           = 135.0
+x1min           = -15.0
+x2max           = 15.0
+x2min           = -15.0
+x3max           = 15.0
+x3min           = -15.0
+
+<problem>
+Bz              = 0.365
+betafloor       = 0.001
+betain          = 10.0
+betaout         = 1e+20
+d_MIN           = 0.001
+dp              = -0.6
+dr              = 0.046875
+drat            = 100.0
+dtmin           = 1e-09
+gamma           = 1.66666666667
+nterms          = 10.0
+r_cloud         = 2.5
+tnotcool        = 0.04
+vflow           = 0.5
+
+<par_end>
