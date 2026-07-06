@@ -41,6 +41,17 @@ static void bc_ox1(GridS *pGrid);
 
 static void check_div_b(GridS *pGrid);
 
+#ifdef MHD
+/* Build a divergence-free tangled field from a vector potential. */
+static void add_term(Real3Vect ***A, GridS *pG, Real theta, Real phi,
+                     Real alpha, Real beta, Real amp);
+static Real3Vect get_e1(Real theta, Real phi);
+static Real3Vect get_e2(Real theta, Real phi);
+static Real3Vect get_e3(Real theta, Real phi);
+static Real randomreal2(Real min, Real max);
+static Real RandomNormal2(Real mu, Real sigma);
+#endif
+
 /* custom hst quantities */
 static Real hst_m13(const GridS *pG, const int i, const int j, const int k);
 static Real hst_m110(const GridS *pG, const int i, const int j, const int k);
@@ -141,6 +152,8 @@ static Real drat, dr, r_cloud, acc, v_cloud;
 
 static Real v_wind, v_wind0, M_wind, T_cloud, rho_hot, Press, T_ceil_cool, scaling_fac;
 
+static Real betain, betaout_y, betaout_z;
+
 //-------------------------------------------------------------
 
 static Real T_floor, T_ceil, rhofloor, betafloor, T_floor_cooling; /* Used in nancheck*/
@@ -157,6 +170,9 @@ static Real pro(Real r, Real rcloud)
 static Real get_pressure(ConsS *u)
 {
   Real E0 = 0.5 * (SQR(u->M1) + SQR(u->M2) + SQR(u->M3)) / u->d;
+#ifdef MHD
+  E0 += 0.5 * (SQR(u->B1c) + SQR(u->B2c) + SQR(u->B3c));
+#endif
 
   return (u->E - E0) * Gamma_1;
 }
@@ -189,7 +205,7 @@ void problem(DomainS *pDomain)
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
   Real bscale, ascale;
-  int tangledloud = 0;
+  int tangled = 0;
 #if (NSCALARS > 0)
   Real dye;
 #endif
@@ -213,6 +229,14 @@ void problem(DomainS *pDomain)
   scaling_fac = par_getd("problem", "scaling_fac");
   
   Press = T_cloud * drat;
+
+#ifdef MHD
+  tangled = par_geti_def("problem", "tangled", 1);
+  betain = par_getd_def("problem", "betain", 100.0);
+  betaout_y = par_getd_def("problem", "betaout_y", 1.e20);
+  betaout_z = par_getd_def("problem", "betaout_z", 1.e20);
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+#endif
 
   //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
 
@@ -562,6 +586,113 @@ void problem(DomainS *pDomain)
     }
   } /* end grid loops */
 
+#ifdef MHD
+  /*
+   * Generate the tangled cloud field as curl(A), following cloud-3dtang.
+   * The vector-potential mask uses the distance to the nearest cloud so the
+   * construction also works for beneMorph's multiple-cloud initial data.
+   */
+  if (tangled)
+  {
+    A = (Real3Vect ***)calloc_3d_array(nx3, nx2, nx1, sizeof(Real3Vect));
+    nterms = par_geti_def("problem", "nterms", 10);
+    alpha = par_getd_def("problem", "alpha", 50.0);
+    if (nterms < 1 || alpha == 0.0)
+      ath_error("[problem]: nterms must be positive and alpha non-zero.\n");
+
+    for (i = 0; i < nterms; ++i)
+    {
+      if (myID_Comm_world == 0)
+      {
+        phi = randomreal2(0.0, 2.0 * PI);
+        theta = acos(2.0 * randomreal2(0.0, 1.0) - 1.0);
+        beta = randomreal2(0.0, 2.0 * PI);
+        amp = RandomNormal2(1.0, 0.25);
+      }
+      else
+        theta = phi = beta = amp = 0.0;
+
+#ifdef MPI_PARALLEL
+      my_scal[0] = theta; my_scal[1] = phi; my_scal[2] = beta;
+      my_scal[3] = amp;   my_scal[4] = alpha;
+      ierr = MPI_Allreduce(my_scal, scal, 5, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+      if (ierr)
+        ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+      theta = scal[0]; phi = scal[1]; beta = scal[2];
+      amp = scal[3]; alpha = scal[4];
+#endif
+      add_term(A, pGrid, theta, phi, alpha, beta, amp);
+    }
+
+    Bin = sqrt(2.0 * Press / betain);
+    for (k = 0; k < nx3; ++k)
+      for (j = 0; j < nx2; ++j)
+        for (i = 0; i < nx1; ++i)
+        {
+          A[k][j][i].x1 *= Bin / sqrt((Real)nterms);
+          A[k][j][i].x2 *= Bin / sqrt((Real)nterms);
+          A[k][j][i].x3 *= Bin / sqrt((Real)nterms);
+          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+          d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
+                   + SQR(x3 - centerpos[0][2]));
+          for (m = 1; m < rows; ++m)
+          {
+            d_temp = sqrt(SQR(x1 - centerpos[m][0]) + SQR(x2 - centerpos[m][1])
+                        + SQR(x3 - centerpos[m][2]));
+            if (d_temp < d) d = d_temp;
+          }
+          if (d > r_cloud)
+            A[k][j][i].x1 = A[k][j][i].x2 = A[k][j][i].x3 = 0.0;
+        }
+  }
+
+  Bout_y = sqrt(2.0 * Press / betaout_y);
+  Bout_z = sqrt(2.0 * Press / betaout_z);
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie + 1; ++i)
+        pGrid->B1i[k][j][i] = tangled
+          ? (A[k][j+1][i].x3 - A[k][j][i].x3) / pGrid->dx2
+          - (A[k+1][j][i].x2 - A[k][j][i].x2) / pGrid->dx3 : 0.0;
+
+  ju = (pGrid->Nx[1] > 1) ? je + 1 : je;
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= ju; ++j)
+      for (i = is; i <= ie; ++i)
+        pGrid->B2i[k][j][i] = (tangled
+          ? (A[k+1][j][i].x1 - A[k][j][i].x1) / pGrid->dx3
+          - (A[k][j][i+1].x3 - A[k][j][i].x3) / pGrid->dx1 : 0.0) + Bout_y;
+
+  ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
+  for (k = ks; k <= ku; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie; ++i)
+        pGrid->B3i[k][j][i] = (tangled
+          ? (A[k][j][i+1].x2 - A[k][j][i].x2) / pGrid->dx1
+          - (A[k][j+1][i].x1 - A[k][j][i].x1) / pGrid->dx2 : 0.0) + Bout_z;
+
+  if (tangled) free_3d_array((void ***)A);
+
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie; ++i)
+      {
+        pGrid->U[k][j][i].B1c =
+          0.5 * (pGrid->B1i[k][j][i] + pGrid->B1i[k][j][i+1]);
+        pGrid->U[k][j][i].B2c = (pGrid->Nx[1] > 1)
+          ? 0.5 * (pGrid->B2i[k][j][i] + pGrid->B2i[k][j+1][i])
+          : pGrid->B2i[k][j][i];
+        pGrid->U[k][j][i].B3c = (pGrid->Nx[2] > 1)
+          ? 0.5 * (pGrid->B3i[k][j][i] + pGrid->B3i[k+1][j][i])
+          : pGrid->B3i[k][j][i];
+#ifndef ISOTHERMAL
+        pGrid->U[k][j][i].E += 0.5 * (SQR(pGrid->U[k][j][i].B1c)
+          + SQR(pGrid->U[k][j][i].B2c) + SQR(pGrid->U[k][j][i].B3c));
+#endif
+      }
+  check_div_b(pGrid);
+#endif /* MHD */
+
   // Some info printed
 
   Real t_cc, t_cool_cl, t_cool_hot, t_cool_mix, cool_mix_cc;
@@ -677,6 +808,13 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   scaling_fac = par_getd("problem", "scaling_fac");
 
   Press = T_cloud * drat;
+
+#ifdef MHD
+  betain = par_getd_def("problem", "betain", 100.0);
+  betaout_y = par_getd_def("problem", "betaout_y", 1.e20);
+  betaout_z = par_getd_def("problem", "betaout_z", 1.e20);
+  betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+#endif
 
   //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
 
@@ -1918,6 +2056,122 @@ static Real hst_cstcool(const GridS *pG, const int i, const int j, const int k)
 
 #endif /* NSCALARS */
 
+#ifdef MHD
+static void check_div_b(GridS *pGrid)
+{
+  int i, j, k;
+  Real divb = 0.0;
+
+  for (k = pGrid->ks; k <= pGrid->ke; ++k)
+    for (j = pGrid->js; j <= pGrid->je; ++j)
+      for (i = pGrid->is; i <= pGrid->ie; ++i)
+      {
+        Real divcell =
+          (pGrid->B1i[k][j][i+1] - pGrid->B1i[k][j][i]) / pGrid->dx1
+          + (pGrid->B2i[k][j+1][i] - pGrid->B2i[k][j][i]) / pGrid->dx2;
+        if (pGrid->Nx[2] > 1)
+          divcell +=
+            (pGrid->B3i[k+1][j][i] - pGrid->B3i[k][j][i]) / pGrid->dx3;
+        divb += fabs(divcell);
+      }
+#ifdef MPI_PARALLEL
+  {
+    Real local_divb = divb;
+    int ierr = MPI_Allreduce(&local_divb, &divb, 1, MPI_RL, MPI_SUM,
+                             MPI_COMM_WORLD);
+    if (ierr)
+      ath_error("[check_div_b]: MPI_Allreduce returned error %d\n", ierr);
+  }
+#endif
+  ath_pout(0, "divb = %e\n", divb);
+}
+
+static void add_term(Real3Vect ***A, GridS *pG, Real theta, Real phi,
+                     Real alpha, Real beta, Real amp)
+{
+  int i, j, k;
+  Real phase;
+  Real3Vect e1 = get_e1(theta, phi);
+  Real3Vect e2 = get_e2(theta, phi);
+  Real3Vect e3 = get_e3(theta, phi);
+  Real3Vect kv, r;
+
+  kv.x1 = alpha * e3.x1;
+  kv.x2 = alpha * e3.x2;
+  kv.x3 = alpha * e3.x3;
+
+  for (k = 0; k <= pG->ke + nghost; ++k)
+    for (j = 0; j <= pG->je + nghost; ++j)
+      for (i = 0; i <= pG->ie + nghost; ++i)
+      {
+        cc_pos(pG, i, j, k, &r.x1, &r.x2, &r.x3);
+        r.x1 -= 0.5 * pG->dx1;
+        r.x2 -= 0.5 * pG->dx2;
+        r.x3 -= 0.5 * pG->dx3;
+        phase = r.x1 * kv.x1 + r.x2 * kv.x2 + r.x3 * kv.x3 + beta;
+        A[k][j][i].x1 += amp * (e2.x1 * cos(phase) + e1.x1 * sin(phase)) / alpha;
+        A[k][j][i].x2 += amp * (e2.x2 * cos(phase) + e1.x2 * sin(phase)) / alpha;
+        A[k][j][i].x3 += amp * (e2.x3 * cos(phase) + e1.x3 * sin(phase)) / alpha;
+      }
+}
+
+static Real3Vect get_e1(Real theta, Real phi)
+{
+  Real3Vect e;
+  e.x1 = -sin(theta);
+  e.x2 = cos(theta) * cos(phi);
+  e.x3 = cos(theta) * sin(phi);
+  return e;
+}
+
+static Real3Vect get_e2(Real theta, Real phi)
+{
+  Real3Vect e;
+  (void)theta;
+  e.x1 = 0.0;
+  e.x2 = -sin(phi);
+  e.x3 = cos(phi);
+  return e;
+}
+
+static Real3Vect get_e3(Real theta, Real phi)
+{
+  Real3Vect e;
+  e.x1 = cos(theta);
+  e.x2 = sin(theta) * cos(phi);
+  e.x3 = sin(theta) * sin(phi);
+  return e;
+}
+
+static Real randomreal2(Real min, Real max)
+{
+  return min + ((Real)rand() / (Real)RAND_MAX) * (max - min);
+}
+
+static Real RandomNormal2(Real mu, Real sigma)
+{
+  Real x1, x2, w;
+  static Real saved;
+  static int use_saved = 0;
+
+  if (use_saved)
+  {
+    use_saved = 0;
+    return mu + saved * sigma;
+  }
+  do
+  {
+    x1 = randomreal2(-1.0, 1.0);
+    x2 = randomreal2(-1.0, 1.0);
+    w = x1 * x1 + x2 * x2;
+  } while (w >= 1.0 || w == 0.0);
+  w = sqrt(-2.0 * log(w) / w);
+  saved = x2 * w;
+  use_saved = 1;
+  return mu + x1 * w * sigma;
+}
+#endif /* MHD */
+
 /*==============================================================================
  * BOUNDARY CONDITIONS:
  *
@@ -1930,6 +2184,11 @@ static void bc_ix1(GridS *pGrid)
   int ks = pGrid->ks, ke = pGrid->ke;
   int i, j, k;
   Real presswind = T_cloud * drat;
+#ifdef MHD
+  int ju, ku;
+  Real By = sqrt(2.0 * presswind / betaout_y);
+  Real Bz = sqrt(2.0 * presswind / betaout_z);
+#endif
 
   for (k = ks; k <= ke; k++)
   {
@@ -1940,14 +2199,21 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is - i] = pGrid->U[k][j][is];
 
 #if (NSCALARS > 0)
-        pGrid->U[k][j][i].s[0] = 0.0;
+        pGrid->U[k][j][is - i].s[0] = 0.0;
 #endif
 
-        pGrid->U[k][j][is - i].d = 1.0;
-        pGrid->U[k][j][is - i].M1 = 1.0 * v_wind;
+        pGrid->U[k][j][is - i].d = rho_hot;
+        pGrid->U[k][j][is - i].M1 = rho_hot * v_wind;
         pGrid->U[k][j][is - i].M2 = 0.0;
         pGrid->U[k][j][is - i].M3 = 0.0;
-        pGrid->U[k][j][is - i].E = presswind / Gamma_1 + 0.5 * SQR(v_wind);
+        pGrid->U[k][j][is - i].E =
+          presswind / Gamma_1 + 0.5 * rho_hot * SQR(v_wind);
+#ifdef MHD
+        pGrid->U[k][j][is - i].B1c = 0.0;
+        pGrid->U[k][j][is - i].B2c = By;
+        pGrid->U[k][j][is - i].B3c = Bz;
+        pGrid->U[k][j][is - i].E += 0.5 * (SQR(By) + SQR(Bz));
+#endif
 
         if ((pGrid->U[k][j][is - i].E < 0) || isnan(pGrid->U[k][j][is - i].E))
           ath_error("[bc_ix1] E %e %e %e %e %e %d %d %d\n",
@@ -1956,6 +2222,26 @@ static void bc_ix1(GridS *pGrid)
       }
     }
   }
+
+#ifdef MHD
+  /* The normal interface at is is controlled by constrained transport. */
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = 1; i <= nghost; ++i)
+        pGrid->B1i[k][j][is-i] = 0.0;
+
+  ju = (pGrid->Nx[1] > 1) ? je + 1 : je;
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= ju; ++j)
+      for (i = 1; i <= nghost; ++i)
+        pGrid->B2i[k][j][is-i] = By;
+
+  ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
+  for (k = ks; k <= ku; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = 1; i <= nghost; ++i)
+        pGrid->B3i[k][j][is-i] = Bz;
+#endif
 
   return;
 }
@@ -1968,6 +2254,9 @@ static void bc_ox1(GridS *pGrid)
   int i, j, k;
   const int V = 0;
   int NO = 10;
+#ifdef MHD
+  int ju, ku;
+#endif
 
   for (k = ks; k <= ke; k++)
   {
@@ -1992,6 +2281,25 @@ static void bc_ox1(GridS *pGrid)
       }
     }
   }
+
+#ifdef MHD
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = 2; i <= nghost; ++i)
+        pGrid->B1i[k][j][ie+i] = pGrid->B1i[k][j][ie];
+
+  ju = (pGrid->Nx[1] > 1) ? je + 1 : je;
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= ju; ++j)
+      for (i = 1; i <= nghost; ++i)
+        pGrid->B2i[k][j][ie+i] = pGrid->B2i[k][j][ie];
+
+  ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
+  for (k = ks; k <= ku; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = 1; i <= nghost; ++i)
+        pGrid->B3i[k][j][ie+i] = pGrid->B3i[k][j][ie];
+#endif
 
   return;
 }

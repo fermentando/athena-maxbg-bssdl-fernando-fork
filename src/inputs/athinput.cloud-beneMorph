@@ -57,6 +57,14 @@ M_wind          = 1.5           # Mach Number of hot wind
 T_ceil_cool     = 100           # switch off cooling above this T in units of 10^4 K
 scaling_fac     = .26
 
+# Magnetic field (used by MHD builds)
+tangled         = 1             # generate a divergence-free tangled cloud field
+betain          = 100.0         # cloud plasma beta
+betaout_y       = 1e20          # ambient transverse-field plasma beta
+betaout_z       = 1e20
+nterms          = 10            # number of force-free modes
+alpha           = 50.0          # mode wavenumber
+
 #Deprecated
 #dp              = -0.6 # sets global pressure. P = Gamma - 1 + dp
 #vflow           = 0.5 # flow speed
