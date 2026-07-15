@@ -236,6 +236,8 @@ void problem(DomainS *pDomain)
   betaout_y = par_getd_def("problem", "betaout_y", 1.e20);
   betaout_z = par_getd_def("problem", "betaout_z", 1.e20);
   betafloor = par_getd_def("problem", "betafloor", 3.e-3);
+  if (tangled && betain <= 0.0)
+    ath_error("[problem]: betain must be positive when tangled fields are enabled.\n");
 #endif
 
   //Real centerpos[3][3] = {{0,0,0}, {-6,-6,0}, {-6,6,0}};
@@ -624,14 +626,13 @@ void problem(DomainS *pDomain)
       add_term(A, pGrid, theta, phi, alpha, beta, amp);
     }
 
-    Bin = sqrt(2.0 * Press / betain);
     for (k = 0; k < nx3; ++k)
       for (j = 0; j < nx2; ++j)
         for (i = 0; i < nx1; ++i)
         {
-          A[k][j][i].x1 *= Bin / sqrt((Real)nterms);
-          A[k][j][i].x2 *= Bin / sqrt((Real)nterms);
-          A[k][j][i].x3 *= Bin / sqrt((Real)nterms);
+          A[k][j][i].x1 /= sqrt((Real)nterms);
+          A[k][j][i].x2 /= sqrt((Real)nterms);
+          A[k][j][i].x3 /= sqrt((Real)nterms);
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
                    + SQR(x3 - centerpos[0][2]));
@@ -646,8 +647,6 @@ void problem(DomainS *pDomain)
         }
   }
 
-  Bout_y = sqrt(2.0 * Press / betaout_y);
-  Bout_z = sqrt(2.0 * Press / betaout_z);
   for (k = ks; k <= ke; ++k)
     for (j = js; j <= je; ++j)
       for (i = is; i <= ie + 1; ++i)
@@ -659,17 +658,89 @@ void problem(DomainS *pDomain)
   for (k = ks; k <= ke; ++k)
     for (j = js; j <= ju; ++j)
       for (i = is; i <= ie; ++i)
-        pGrid->B2i[k][j][i] = (tangled
+        pGrid->B2i[k][j][i] = tangled
           ? (A[k+1][j][i].x1 - A[k][j][i].x1) / pGrid->dx3
-          - (A[k][j][i+1].x3 - A[k][j][i].x3) / pGrid->dx1 : 0.0) + Bout_y;
+          - (A[k][j][i+1].x3 - A[k][j][i].x3) / pGrid->dx1 : 0.0;
 
   ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
   for (k = ks; k <= ku; ++k)
     for (j = js; j <= je; ++j)
       for (i = is; i <= ie; ++i)
-        pGrid->B3i[k][j][i] = (tangled
+        pGrid->B3i[k][j][i] = tangled
           ? (A[k][j][i+1].x2 - A[k][j][i].x2) / pGrid->dx1
-          - (A[k][j+1][i].x1 - A[k][j][i].x1) / pGrid->dx2 : 0.0) + Bout_z;
+          - (A[k][j+1][i].x1 - A[k][j][i].x1) / pGrid->dx2 : 0.0;
+
+  /* Normalize the field after the discrete curl.  Scaling A by the desired
+   * field strength does not account for the curl, mask, or grid resolution. */
+  if (tangled)
+  {
+    Brms = ncells = 0.0;
+    for (k = ks; k <= ke; ++k)
+      for (j = js; j <= je; ++j)
+        for (i = is; i <= ie; ++i)
+        {
+          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+          d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
+                   + SQR(x3 - centerpos[0][2]));
+          for (m = 1; m < rows; ++m)
+          {
+            d_temp = sqrt(SQR(x1 - centerpos[m][0]) + SQR(x2 - centerpos[m][1])
+                          + SQR(x3 - centerpos[m][2]));
+            if (d_temp < d) d = d_temp;
+          }
+          if (d < r_cloud)
+          {
+            bmag = 0.5 * (pGrid->B1i[k][j][i] + pGrid->B1i[k][j][i+1]);
+            Bs = SQR(bmag);
+            bmag = (pGrid->Nx[1] > 1)
+              ? 0.5 * (pGrid->B2i[k][j][i] + pGrid->B2i[k][j+1][i])
+              : pGrid->B2i[k][j][i];
+            Bs += SQR(bmag);
+            bmag = (pGrid->Nx[2] > 1)
+              ? 0.5 * (pGrid->B3i[k][j][i] + pGrid->B3i[k+1][j][i])
+              : pGrid->B3i[k][j][i];
+            Brms += Bs + SQR(bmag);
+            ncells += 1.0;
+          }
+        }
+#ifdef MPI_PARALLEL
+    my_scal[0] = Brms; my_scal[1] = ncells;
+    ierr = MPI_Allreduce(my_scal, scal, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+    if (ierr)
+      ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+    Brms = scal[0]; ncells = scal[1];
+#endif
+    if (ncells == 0.0 || Brms <= 0.0)
+      ath_error("[problem]: cannot normalize tangled field: no magnetic cloud cells.\n");
+
+    Bin = sqrt(2.0 * Press / betain);
+    bscale = Bin / sqrt(Brms / ncells);
+    for (k = ks; k <= ke; ++k)
+      for (j = js; j <= je; ++j)
+        for (i = is; i <= ie + 1; ++i)
+          pGrid->B1i[k][j][i] *= bscale;
+    for (k = ks; k <= ke; ++k)
+      for (j = js; j <= ju; ++j)
+        for (i = is; i <= ie; ++i)
+          pGrid->B2i[k][j][i] *= bscale;
+    for (k = ks; k <= ku; ++k)
+      for (j = js; j <= je; ++j)
+        for (i = is; i <= ie; ++i)
+          pGrid->B3i[k][j][i] *= bscale;
+    ath_pout(0, "[init_problem] tangled cloud beta = %g (target %g)\n",
+             2.0 * Press / (SQR(bscale) * Brms / ncells), betain);
+  }
+
+  Bout_y = sqrt(2.0 * Press / betaout_y);
+  Bout_z = sqrt(2.0 * Press / betaout_z);
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= ju; ++j)
+      for (i = is; i <= ie; ++i)
+        pGrid->B2i[k][j][i] += Bout_y;
+  for (k = ks; k <= ku; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie; ++i)
+        pGrid->B3i[k][j][i] += Bout_z;
 
   if (tangled) free_3d_array((void ***)A);
 
