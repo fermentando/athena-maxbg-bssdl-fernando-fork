@@ -201,6 +201,7 @@ void problem(DomainS *pDomain)
   Real my_scal[5];
 
   Real x1min, x1max, x2min, x2max, x3min, x3max, tmp;
+  Real temp, Tmin, Tmax;
 
   Real jmag, bmag, JdB, JcBforce, norm, Brms, Bs, Bmax, Bmax_cloud, ncells;
   Real Bin, Bout_z, Bout_y;
@@ -342,6 +343,8 @@ void problem(DomainS *pDomain)
   int getSize(char *filename)
   {
     FILE *file;
+    float x, y, z;
+    int linecount = 0;
 
     file = fopen(filename, "r");
     if (file == NULL)
@@ -349,15 +352,8 @@ void problem(DomainS *pDomain)
       ath_error("Error opening the file.\n");
     }
 
-    int linecount = 1;
-    char c;
-
-    do
-    {
-      c = fgetc(file);
-      if (c == '\n')
-        linecount++;
-    } while (c != EOF);
+    while (fscanf(file, "%f %f %f", &x, &y, &z) == 3)
+      linecount++;
 
     fclose(file);
 
@@ -626,13 +622,15 @@ void problem(DomainS *pDomain)
       add_term(A, pGrid, theta, phi, alpha, beta, amp);
     }
 
+    Bin = sqrt(2.0 * Press / betain);
+
     for (k = 0; k < nx3; ++k)
       for (j = 0; j < nx2; ++j)
         for (i = 0; i < nx1; ++i)
         {
-          A[k][j][i].x1 /= sqrt((Real)nterms);
-          A[k][j][i].x2 /= sqrt((Real)nterms);
-          A[k][j][i].x3 /= sqrt((Real)nterms);
+          A[k][j][i].x1 *= Bin / sqrt((Real)nterms);
+          A[k][j][i].x2 *= Bin / sqrt((Real)nterms);
+          A[k][j][i].x3 *= Bin / sqrt((Real)nterms);
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
           d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
                    + SQR(x3 - centerpos[0][2]));
@@ -655,92 +653,51 @@ void problem(DomainS *pDomain)
           - (A[k+1][j][i].x2 - A[k][j][i].x2) / pGrid->dx3 : 0.0;
 
   ju = (pGrid->Nx[1] > 1) ? je + 1 : je;
+  Bout_y = sqrt(2.0 * Press / betaout_y);
+  if (betaout_y < 10.0)
+    ath_error("Strong By not fully supported yet. Need to change thermal pressure.");
   for (k = ks; k <= ke; ++k)
     for (j = js; j <= ju; ++j)
       for (i = is; i <= ie; ++i)
-        pGrid->B2i[k][j][i] = tangled
-          ? (A[k+1][j][i].x1 - A[k][j][i].x1) / pGrid->dx3
-          - (A[k][j][i+1].x3 - A[k][j][i].x3) / pGrid->dx1 : 0.0;
-
-  ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
-  for (k = ks; k <= ku; ++k)
-    for (j = js; j <= je; ++j)
-      for (i = is; i <= ie; ++i)
-        pGrid->B3i[k][j][i] = tangled
-          ? (A[k][j][i+1].x2 - A[k][j][i].x2) / pGrid->dx1
-          - (A[k][j+1][i].x1 - A[k][j][i].x1) / pGrid->dx2 : 0.0;
-
-  /* Normalize the field after the discrete curl.  Scaling A by the desired
-   * field strength does not account for the curl, mask, or grid resolution. */
-  if (tangled)
-  {
-    Brms = ncells = 0.0;
-    for (k = ks; k <= ke; ++k)
-      for (j = js; j <= je; ++j)
-        for (i = is; i <= ie; ++i)
+      {
+        pGrid->B2i[k][j][i] = 0.0;
+        if (tangled)
         {
           cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
-          d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
-                   + SQR(x3 - centerpos[0][2]));
-          for (m = 1; m < rows; ++m)
-          {
-            d_temp = sqrt(SQR(x1 - centerpos[m][0]) + SQR(x2 - centerpos[m][1])
-                          + SQR(x3 - centerpos[m][2]));
-            if (d_temp < d) d = d_temp;
-          }
-          if (d < r_cloud)
-          {
-            bmag = 0.5 * (pGrid->B1i[k][j][i] + pGrid->B1i[k][j][i+1]);
-            Bs = SQR(bmag);
-            bmag = (pGrid->Nx[1] > 1)
-              ? 0.5 * (pGrid->B2i[k][j][i] + pGrid->B2i[k][j+1][i])
-              : pGrid->B2i[k][j][i];
-            Bs += SQR(bmag);
-            bmag = (pGrid->Nx[2] > 1)
-              ? 0.5 * (pGrid->B3i[k][j][i] + pGrid->B3i[k+1][j][i])
-              : pGrid->B3i[k][j][i];
-            Brms += Bs + SQR(bmag);
-            ncells += 1.0;
-          }
+          bscale = 0.5 + 0.5 * tanh((-r_cloud * 3.0 - x1) * 3.0 / r_cloud);
+          pGrid->B2i[k][j][i] =
+            (A[k+1][j][i].x1 - A[k][j][i].x1) / pGrid->dx3
+            - (A[k][j][i+1].x3 - A[k][j][i].x3) / pGrid->dx1
+            + bscale * Bout_y;
         }
-#ifdef MPI_PARALLEL
-    my_scal[0] = Brms; my_scal[1] = ncells;
-    ierr = MPI_Allreduce(my_scal, scal, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-    if (ierr)
-      ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
-    Brms = scal[0]; ncells = scal[1];
-#endif
-    if (ncells == 0.0 || Brms <= 0.0)
-      ath_error("[problem]: cannot normalize tangled field: no magnetic cloud cells.\n");
+        else
+          pGrid->B2i[k][j][i] = Bout_y;
+      }
 
-    Bin = sqrt(2.0 * Press / betain);
-    bscale = Bin / sqrt(Brms / ncells);
-    for (k = ks; k <= ke; ++k)
-      for (j = js; j <= je; ++j)
-        for (i = is; i <= ie + 1; ++i)
-          pGrid->B1i[k][j][i] *= bscale;
-    for (k = ks; k <= ke; ++k)
-      for (j = js; j <= ju; ++j)
-        for (i = is; i <= ie; ++i)
-          pGrid->B2i[k][j][i] *= bscale;
-    for (k = ks; k <= ku; ++k)
-      for (j = js; j <= je; ++j)
-        for (i = is; i <= ie; ++i)
-          pGrid->B3i[k][j][i] *= bscale;
-    ath_pout(0, "[init_problem] tangled cloud beta = %g (target %g)\n",
-             2.0 * Press / (SQR(bscale) * Brms / ncells), betain);
-  }
-
-  Bout_y = sqrt(2.0 * Press / betaout_y);
+  ku = (pGrid->Nx[2] > 1) ? ke + 1 : ke;
   Bout_z = sqrt(2.0 * Press / betaout_z);
-  for (k = ks; k <= ke; ++k)
-    for (j = js; j <= ju; ++j)
-      for (i = is; i <= ie; ++i)
-        pGrid->B2i[k][j][i] += Bout_y;
   for (k = ks; k <= ku; ++k)
     for (j = js; j <= je; ++j)
       for (i = is; i <= ie; ++i)
-        pGrid->B3i[k][j][i] += Bout_z;
+      {
+        pGrid->B3i[k][j][i] = 0.0;
+        if (tangled)
+        {
+          cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+          bscale = 0.5 + 0.5 * tanh((-x1 / 1.5 - 5.0) / r_cloud);
+          ascale = 0.5 * SQR(Bout_z) * (1.0 - SQR(bscale)) / Press + 1.0;
+#ifndef ISOTHERMAL
+          /* Ensure total pressure is constant, matching cloud-3dtang. */
+          pGrid->U[k][j][i].E += (ascale - 1.0) * Press / Gamma_1;
+#endif
+          pGrid->B3i[k][j][i] =
+            (A[k][j][i+1].x2 - A[k][j][i].x2) / pGrid->dx1
+            - (A[k][j+1][i].x1 - A[k][j][i].x1) / pGrid->dx2
+            + bscale * Bout_z;
+        }
+        else
+          pGrid->B3i[k][j][i] = Bout_z;
+      }
 
   if (tangled) free_3d_array((void ***)A);
 
@@ -761,8 +718,81 @@ void problem(DomainS *pDomain)
           + SQR(pGrid->U[k][j][i].B2c) + SQR(pGrid->U[k][j][i].B3c));
 #endif
       }
+
+  Brms = Bmax = Bmax_cloud = 0.0;
+  ncells = 0.0;
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie; ++i)
+      {
+        Bs = SQR(pGrid->U[k][j][i].B1c) + SQR(pGrid->U[k][j][i].B2c)
+          + SQR(pGrid->U[k][j][i].B3c);
+        if (Bs > 1.e-6)
+        {
+          Brms += Bs;
+          ncells += 1.0;
+        }
+        Bmax = MAX(Bmax, Bs);
+
+        cc_pos(pGrid, i, j, k, &x1, &x2, &x3);
+        d = sqrt(SQR(x1 - centerpos[0][0]) + SQR(x2 - centerpos[0][1])
+                 + SQR(x3 - centerpos[0][2]));
+        for (m = 1; m < rows; ++m)
+        {
+          d_temp = sqrt(SQR(x1 - centerpos[m][0]) + SQR(x2 - centerpos[m][1])
+                        + SQR(x3 - centerpos[m][2]));
+          if (d_temp < d) d = d_temp;
+        }
+        if (d < r_cloud)
+          Bmax_cloud = MAX(Bmax_cloud, Bs);
+      }
+#ifdef MPI_PARALLEL
+  my_scal[0] = Brms; my_scal[1] = ncells;
+  ierr = MPI_Allreduce(my_scal, scal, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+  Brms = scal[0]; ncells = scal[1];
+
+  my_scal[0] = Bmax; my_scal[1] = Bmax_cloud;
+  ierr = MPI_Allreduce(my_scal, scal, 2, MPI_RL, MPI_MAX, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+  Bmax = scal[0]; Bmax_cloud = scal[1];
+#endif
+  Brms = sqrt(Brms / ncells);
+  Bmax = sqrt(Bmax);
+  Bmax_cloud = sqrt(Bmax_cloud);
+  ath_pout(0, "[init_prob] Brms = %f, Bmax = %f, Bmax_cloud = %f, "
+           "beta_rms = %f, beta_max = %f, beta_cloud_max = %f\n",
+           Brms, Bmax, Bmax_cloud, 2.0 * Press / SQR(Brms),
+           2.0 * Press / SQR(Bmax), 2.0 * Press / SQR(Bmax_cloud));
   check_div_b(pGrid);
 #endif /* MHD */
+
+#ifndef ISOTHERMAL
+  Tmin = HUGE_NUMBER;
+  Tmax = -HUGE_NUMBER;
+  for (k = ks; k <= ke; ++k)
+    for (j = js; j <= je; ++j)
+      for (i = is; i <= ie; ++i)
+      {
+        temp = get_pressure(&(pGrid->U[k][j][i])) / pGrid->U[k][j][i].d;
+        Tmin = MIN(Tmin, temp);
+        Tmax = MAX(Tmax, temp);
+      }
+#ifdef MPI_PARALLEL
+  my_scal[0] = Tmin; my_scal[1] = Tmax;
+  ierr = MPI_Allreduce(&(my_scal[0]), &(scal[0]), 1, MPI_RL, MPI_MIN, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+  ierr = MPI_Allreduce(&(my_scal[1]), &(scal[1]), 1, MPI_RL, MPI_MAX, MPI_COMM_WORLD);
+  if (ierr)
+    ath_error("[problem]: MPI_Allreduce returned error %d\n", ierr);
+  Tmin = scal[0]; Tmax = scal[1];
+#endif
+  ath_pout(0, "[init_problem] thermodynamic T range = [%g, %g]; expected cloud T = %g, hot T = %g\n",
+           Tmin, Tmax, T_cloud, Press / rho_hot);
+#endif /* not ISOTHERMAL */
 
   // Some info printed
 
