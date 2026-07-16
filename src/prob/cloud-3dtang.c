@@ -178,6 +178,7 @@ static Real scalefac = 1.0;
 static Real drat, vflow, vflow0, betain, betaout_y, betaout_z,dr,dp,tnotcool, r_cloud, acc, v_cloud;
 
 static Real tfloor, tceil, rhofloor, betafloor, tfloor_cooling; /* Used in nancheck*/
+static Real scaling_fac;
 static Real dens_conv;
 
 #ifdef VISCOSITY
@@ -221,6 +222,8 @@ void problem(DomainS *pDomain)
   Real x1,x2,x3, r;
   Real rho, vx, vy, vz, v_turb, v_rot;
   Real fact, l_cloud;
+  Real Pgas_init, T_cloud_init, T_mix_init, T_hot_init;
+  Real t_cc, t_cool_cl, t_cool_hot, t_cool_mix, cool_mix_cc;
 
   int iseed;
   Real3Vect ***A;
@@ -283,6 +286,7 @@ void problem(DomainS *pDomain)
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
   dens_conv = par_getd_def("problem", "dens_conv", 1.0);   // for density
                                                            // dependent cooling
+  scaling_fac = par_getd_def("problem", "scaling_fac", 1.0); // multiplier for Lambda(T)
 
   dp = par_getd_def("problem", "dp", 0.0);                 // variation of overall pressure
   tnotcool = par_getd_def("problem", "tnotcool", -1.0);    // no cooling above this
@@ -552,16 +556,34 @@ void problem(DomainS *pDomain)
   } /* end grid loops */
 
   // Some info printed
-  ath_pout(0, "[init_problem] t_cc = %g\tt_cool,cl = %g, Tcl = %g, t_cool,mix = %g, t_cool,hot = %g\n",
-	   sqrt(drat) * r_cloud / vflow,
+  Pgas_init = Gamma_1 + dp;
+  T_cloud_init = Pgas_init / drat;
+  T_mix_init = Pgas_init / sqrt(drat);
+  T_hot_init = Pgas_init;
+  t_cc = sqrt(drat) * r_cloud / vflow;
 #ifdef ENERGY_COOLING
-	   tcool(drat, (Gamma_1 + dp) / drat),
+  t_cool_cl = tcool(drat, T_cloud_init);
+  t_cool_mix = tcool(sqrt(drat), T_mix_init);
+  t_cool_hot = tcool(1.0, T_hot_init);
 #else
-	   -1, -1
+  t_cool_cl = -1.0;
+  t_cool_mix = -1.0;
+  t_cool_hot = -1.0;
 #endif
-	   (Gamma_1 + dp) / drat,
-	   tcool(sqrt(drat), sqrt(drat) * (Gamma_1 + dp) / drat),
-	   tcool(1., drat * (Gamma_1 + dp))
+  cool_mix_cc = t_cool_mix / t_cc;
+
+  ath_pout(0, "[init_problem] t_cc = %g, t_cool,cl = %g, T_cloud = %g, t_cool,mix = %g, t_cool,hot = %g, t_cool,mix/t_cc = %g, scaling_fac = %g\n",
+	   t_cc,
+#ifdef ENERGY_COOLING
+	   t_cool_cl,
+#else
+	   -1.0,
+#endif
+	   T_cloud_init,
+	   t_cool_mix,
+	   t_cool_hot,
+	   cool_mix_cc,
+	   scaling_fac
 	   );
 
 
@@ -888,6 +910,7 @@ void problem_read_restart(MeshS *pM, FILE *fp)
   tceil = par_getd_def("problem", "tceil", 100.);
   rhofloor = par_getd_def("problem", "rhofloor", 1.e-2);
   dtmin = par_getd_def("problem", "dtmin", 1.e-7);
+  scaling_fac = par_getd_def("problem", "scaling_fac", 1.0);
 
 #ifdef MHD
   betain = par_getd("problem", "betain");
@@ -1690,7 +1713,7 @@ static Real sdLambda(const Real d0, const Real T)
 {
   int iT, id; // bin indices for T,d
   Real L1, L2;
-  const Real conv_fac = 1.311e-5; // from units of 1e-23 erg cm^3 /s to code units.
+  const Real conv_fac = 1.311e-5 * scaling_fac; // from units of 1e-23 erg cm^3 /s to code units.
   const Real d = d0 * dens_conv;
   int interpolate = (nfit_cool_d > 1);
 
@@ -2874,4 +2897,3 @@ Real KappaFun_a_constant(const Real d, const Real T,
 
 
 #endif /* THERMAL_CONDUCTION */
-

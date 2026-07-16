@@ -52,6 +52,7 @@ dtmin           = 1e-09
 gamma           = 1.66666666667
 nterms          = 10.0    # not needed in HD, number of tangles in MHD
 r_cloud         = 2.5 # radius of cloud
+scaling_fac     = 1.0 # multiplies the cooling function Lambda(T) only
 tnotcool        = 0.04 # switch off cooling above this T
 vflow           = 0.5 # flow speed
 
