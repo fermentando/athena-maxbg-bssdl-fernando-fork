@@ -608,7 +608,7 @@ void problem(DomainS *pDomain)
         amp = RandomNormal2(1.0, 0.25);
       }
       else
-        theta = phi = beta = amp = 0.0;
+        theta = phi = beta = amp = alpha = 0.0;
 
 #ifdef MPI_PARALLEL
       my_scal[0] = theta; my_scal[1] = phi; my_scal[2] = beta;
@@ -2284,7 +2284,7 @@ static void bc_ix1(GridS *pGrid)
   int js = pGrid->js, je = pGrid->je;
   int ks = pGrid->ks, ke = pGrid->ke;
   int i, j, k;
-  Real presswind = T_cloud * drat;
+  Real presswind = Press;
 #ifdef MHD
   int ju, ku;
   Real By = sqrt(2.0 * presswind / betaout_y);
@@ -2313,7 +2313,13 @@ static void bc_ix1(GridS *pGrid)
         pGrid->U[k][j][is - i].B1c = 0.0;
         pGrid->U[k][j][is - i].B2c = By;
         pGrid->U[k][j][is - i].B3c = Bz;
-        pGrid->U[k][j][is - i].E += 0.5 * (SQR(By) + SQR(Bz));
+        if (i == 1)
+          pGrid->U[k][j][is - i].B1c = 0.5 * pGrid->B1i[k][j][is];
+
+        pGrid->U[k][j][is - i].E +=
+          0.5 * (SQR(pGrid->U[k][j][is - i].B1c)
+                 + SQR(pGrid->U[k][j][is - i].B2c)
+                 + SQR(pGrid->U[k][j][is - i].B3c));
 #endif
 
         if ((pGrid->U[k][j][is - i].E < 0) || isnan(pGrid->U[k][j][is - i].E))
@@ -2328,7 +2334,7 @@ static void bc_ix1(GridS *pGrid)
   /* The normal interface at is is controlled by constrained transport. */
   for (k = ks; k <= ke; ++k)
     for (j = js; j <= je; ++j)
-      for (i = 1; i <= nghost; ++i)
+      for (i = 1; i < nghost; ++i)
         pGrid->B1i[k][j][is-i] = 0.0;
 
   ju = (pGrid->Nx[1] > 1) ? je + 1 : je;
